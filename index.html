@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Faiskifo — prototype</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Faiskifo</h1>
+    <p>Découpe, pige, finis — un outil simple contre la procrastination.</p>
+  </header>
+
+  <main>
+    <section id="add">
+      <h2>Ajouter une tâche</h2>
+      <input id="task-title" placeholder="Titre (ex : Ranger la cuisine)" />
+      <textarea id="task-steps" placeholder="Une étape par ligne (ex : Laver la vaisselle)"></textarea>
+      <button id="add-task-btn">Ajouter la tâche</button>
+    </section>
+
+    <section id="actions">
+      <h2>Action</h2>
+      <div class="row">
+        <label for="timer-minutes">Durée (minutes) :</label>
+        <input id="timer-minutes" type="number" min="1" value="10" />
+        <button id="draw-step-btn">Piger une étape</button>
+        <button id="random-short-btn">Piger 5 min</button>
+      </div>
+
+      <div id="current-step" class="card hidden">
+        <h3>Étape en cours</h3>
+        <p id="current-step-text"></p>
+        <div id="timer">00:00</div>
+        <div class="row">
+          <button id="start-timer-btn">Démarrer</button>
+          <button id="stop-timer-btn">Arrêter</button>
+          <button id="mark-done-btn">Marquer comme terminée</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="tasks">
+      <h2>Mes tâches & étapes</h2>
+      <div id="tasks-list"></div>
+    </section>
+
+    <section id="dashboard">
+      <h2>Tableau de bord</h2>
+      <div class="card">
+        <p>Tâches complétées aujourd'hui : <strong id="today-count">0</strong></p>
+        <p>Minutes passées aujourd'hui : <strong id="today-mins">0</strong></p>
+        <p>Tâches complétées cette semaine : <strong id="week-count">0</strong></p>
+        <p>Minutes cette semaine : <strong id="week-mins">0</strong></p>
+      </div>
+    </section>
+
+    <footer>
+      <small>Prototype local — les données restent dans ton navigateur (localStorage).</small>
+    </footer>
+  </main>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
