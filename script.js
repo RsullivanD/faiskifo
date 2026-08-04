@@ -5,10 +5,7 @@ function now() { return new Date(); }
 function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
 function startOfWeek(d){ const x=new Date(d); const day=x.getDay(); const diff = x.getDate() - day + (day===0? -6:1); x.setDate(diff); x.setHours(0,0,0,0); return x; }
 
-let state = {
-  tasks: [], // {id,title,steps:[{id,text,done}]}
-  history: [] // {ts:timestamp, minutes, taskId, stepId}
-};
+let state = { tasks: [], history: [] };
 
 function loadState(){
   const raw = localStorage.getItem(STORAGE_KEY);
@@ -17,10 +14,9 @@ function loadState(){
   }
 }
 function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-
 function id() { return Math.random().toString(36).slice(2,9); }
 
-/* UI helpers */
+/* UI refs */
 const els = {
   addTitle: document.getElementById("task-title"),
   addSteps: document.getElementById("task-steps"),
@@ -39,10 +35,15 @@ const els = {
   todayMins: document.getElementById("today-mins"),
   weekCount: document.getElementById("week-count"),
   weekMins: document.getElementById("week-mins"),
+  exportBtn: document.getElementById("export-btn"),
+  importBtn: document.getElementById("import-btn"),
+  importFile: document.getElementById("import-file")
 };
 
-let current = null; // {taskId, stepId, remainingSeconds, running, startedAt}
+let current = null; // {taskId, stepId, remainingSeconds, running, origSeconds}
+let timerInterval = null;
 
+/* Renderers */
 function renderTasks(){
   els.tasksList.innerHTML = "";
   if(state.tasks.length===0){
@@ -69,8 +70,7 @@ function renderTasks(){
         if(step.done){
           state.history.push({ts: now().toISOString(), minutes: 0, taskId: task.id, stepId: step.id});
         }
-        saveState();
-        renderAll();
+        saveState(); renderAll();
       };
       const delBtn = document.createElement("button");
       delBtn.textContent = "Suppr";
@@ -86,7 +86,6 @@ function renderTasks(){
       s.appendChild(right);
       div.appendChild(s);
     });
-    // delete task
     const delTaskBtn = document.createElement("button");
     delTaskBtn.textContent = "Supprimer tâche";
     delTaskBtn.onclick = ()=> {
@@ -131,17 +130,18 @@ function renderCurrent(){
   els.stopBtn.disabled = !current.running;
 }
 
-let timerInterval = null;
+/* Timer */
 function tick(){
   if(!current || !current.running) return;
   if(current.remainingSeconds>0){
     current.remainingSeconds--;
     renderCurrent();
   } else {
-    // stop and mark finished prompt
     stopTimer();
     alert("Temps écoulé !");
-    recordCompletion( Math.max(1, Math.round((current.origSeconds - current.remainingSeconds)/60)) );
+    // Use total original minutes (at least 1)
+    const mins = Math.max(1, Math.round((current.origSeconds || 0) / 60));
+    recordCompletion(mins);
   }
 }
 
@@ -163,7 +163,6 @@ function stopTimer(){
 
 function recordCompletion(minutes){
   if(!current) return;
-  // mark step done
   const task = state.tasks.find(t=>t.id===current.taskId);
   const step = task?.steps.find(s=>s.id===current.stepId);
   if(step) step.done = true;
@@ -173,8 +172,8 @@ function recordCompletion(minutes){
   renderAll();
 }
 
+/* Draw / add */
 function drawStep(minutes){
-  // find all undone steps
   const undone = [];
   state.tasks.forEach(task=>{
     task.steps.forEach(step=>{
@@ -186,7 +185,7 @@ function drawStep(minutes){
     return;
   }
   const pick = undone[Math.floor(Math.random()*undone.length)];
-  current = {taskId: pick.taskId, stepId: pick.stepId, remainingSeconds: minutes*60, running:false, origSeconds:minutes*60};
+  current = {taskId: pick.taskId, stepId: pick.stepId, remainingSeconds: minutes*60, running:false, origSeconds: minutes*60};
   renderCurrent();
 }
 
@@ -202,29 +201,71 @@ function addTaskFromUI(){
   renderAll();
 }
 
-/* Events */
+/* Export / Import functions */
+function exportData(){
+  const json = JSON.stringify(state, null, 2);
+  const blob = new Blob([json], {type: "application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `faiskifo-backup-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function handleImportFile(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    try{
+      const imported = JSON.parse(reader.result);
+      if(!imported || typeof imported !== "object" || !Array.isArray(imported.tasks)) {
+        alert("Fichier JSON invalide.");
+        return;
+      }
+      if(confirm("Importer ce fichier remplacera les données actuelles. Continuer ?")) {
+        state = imported;
+        saveState();
+        renderAll();
+        alert("Importation terminée.");
+      }
+    } catch(e){
+      alert("Erreur en lisant le fichier : " + e.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+/* Event bindings */
 els.addBtn.onclick = addTaskFromUI;
 els.drawBtn.onclick = ()=> drawStep(parseInt(els.timerMinutes.value||10,10));
 els.drawShortBtn.onclick = ()=> { els.timerMinutes.value = 5; drawStep(5); };
 els.startBtn.onclick = startTimer;
 els.stopBtn.onclick = ()=> { stopTimer(); };
 els.doneBtn.onclick = ()=> {
-  const mins = Math.max(1, Math.round((current?.origSeconds - current?.remainingSeconds)/60) || Math.round((parseInt(els.timerMinutes.value,10)) ));
+  if(!current){
+    const val = Math.max(1, parseInt(els.timerMinutes.value||10,10));
+    alert("Aucune étape en cours — enregistrement impossible.");
+    return;
+  }
+  const mins = Math.max(1, Math.round(((current.origSeconds || 0) - (current.remainingSeconds || 0)) / 60));
   recordCompletion(mins);
 };
 
-/* Init */
-function renderAll(){
-  saveState();
-  renderTasks();
-  renderDashboard();
-  renderCurrent();
-}
+/* Export / Import bindings */
+els.exportBtn.onclick = exportData;
+els.importBtn.onclick = ()=> els.importFile.click();
+els.importFile.onchange = (e) => {
+  const f = e.target.files && e.target.files[0];
+  if(f) handleImportFile(f);
+};
 
+/* Init & demo */
+function renderAll(){ saveState(); renderTasks(); renderDashboard(); renderCurrent(); }
 loadState();
 renderAll();
 
-// For first-time demo, add a sample if empty
 if(state.tasks.length===0){
   state.tasks.push({
     id:id(),
