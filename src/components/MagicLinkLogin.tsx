@@ -1,23 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabase/client';
+import { onAuthChange } from '../supabase/auth';
 
 export default function MagicLinkLogin() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const subscription = onAuthChange((event, session) => {
+      if (session?.user) {
+        setMessage('Authentifié — redirection en cours...');
+        // TODO: rediriger ou mettre à jour le state global
+      }
+    }) as any;
+
+    return () => {
+      try {
+        subscription?.unsubscribe?.();
+      } catch (e) {
+        // ignore
+      }
+    };
+  }, []);
 
   async function signIn() {
     setLoading(true);
+    setMessage(null);
     try {
-      const { error } = await supabase.auth.signInWithOtp({ email });
+      const { data, error } = await supabase.auth.signInWithOtp({ email });
       if (error) {
         console.error(error);
-        alert('Error sending magic link: ' + error.message);
+        setMessage('Erreur envoi du magic link : ' + error.message);
       } else {
-        alert('Magic link sent — check your email.');
+        setSent(true);
+        setMessage('Magic link envoyé — vérifie ta boîte mail.');
       }
     } catch (err) {
       console.error(err);
-      alert('Unexpected error');
+      setMessage('Erreur inattendue');
     } finally {
       setLoading(false);
     }
@@ -33,10 +55,12 @@ export default function MagicLinkLogin() {
         onChange={(e) => setEmail(e.target.value)}
         placeholder="you@example.com"
         style={{ width: '100%', padding: 8, marginTop: 8, marginBottom: 12 }}
+        disabled={sent}
       />
-      <button onClick={signIn} disabled={loading || !email}>
-        {loading ? 'Sending…' : 'Sign in with magic link'}
+      <button onClick={signIn} disabled={loading || !email || sent}>
+        {loading ? 'Envoi…' : sent ? 'Lien envoyé' : 'Se connecter (magic link)'}
       </button>
+      {message && <div style={{ marginTop: 12 }}>{message}</div>}
     </div>
   );
 }
