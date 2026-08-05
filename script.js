@@ -37,7 +37,8 @@ const els = {
   weekMins: document.getElementById("week-mins"),
   exportBtn: document.getElementById("export-btn"),
   importBtn: document.getElementById("import-btn"),
-  importFile: document.getElementById("import-file")
+  importFile: document.getElementById("import-file"),
+  resetDemoBtn: document.getElementById("reset-demo-btn")
 };
 
 let current = null; // {taskId, stepId, remainingSeconds, running, origSeconds}
@@ -249,7 +250,10 @@ els.doneBtn.onclick = ()=> {
     alert("Aucune étape en cours — enregistrement impossible.");
     return;
   }
-  const mins = Math.max(1, Math.round(((current.origSeconds || 0) - (current.remainingSeconds || 0)) / 60));
+  const auto = Math.max(1, Math.round(((current.origSeconds || 0) - (current.remainingSeconds || 0)) / 60));
+  const input = prompt("Minutes passées pour cette étape :", String(auto));
+  if(input === null) return;
+  const mins = Math.max(1, parseInt(input, 10) || auto);
   recordCompletion(mins);
 };
 
@@ -260,6 +264,24 @@ els.importFile.onchange = (e) => {
   const f = e.target.files && e.target.files[0];
   if(f) handleImportFile(f);
 };
+
+/* Reset demo */
+function resetDemo(){
+  if(!confirm("Réinitialiser les données de démonstration ? Cela supprimera vos tâches actuelles.")) return;
+  state = { tasks: [], history: [] };
+  state.tasks.push({
+    id:id(),
+    title:"Exemple : Nettoyer la cuisine",
+    steps:[
+      {id:id(), text:"Ranger les ustensiles", done:false},
+      {id:id(), text:"Laver la vaisselle (5 min)", done:false},
+      {id:id(), text:"Essuyer les comptoirs", done:false}
+    ]
+  });
+  saveState();
+  renderAll();
+}
+els.resetDemoBtn.onclick = resetDemo;
 
 /* Init & demo */
 function renderAll(){ saveState(); renderTasks(); renderDashboard(); renderCurrent(); }
