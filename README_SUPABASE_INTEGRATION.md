@@ -58,3 +58,4 @@ fetchCategoriesWithTasks().then(console.log).catch(console.error);
 
 - Verify the magic link and reading functions work with an authenticated user.
 - If you want, I can add TypeScript interfaces for the DB entities and a small helper to expose the current user id.
+Pourquoi c’est utile : Documenter comment tester RLS évite des merges précipités et confirme que les policies protègent bien les données.
