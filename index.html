@@ -57,6 +57,10 @@
         <h3>Étape en cours</h3>
         <p id="current-step-text"></p>
         <div id="timer">00:00</div>
+        <div class="row action-row timer-adjust-row">
+          <button id="minus-time-btn" class="btn-icon-ghost" type="button" aria-label="Retirer 5 minutes">−5 min</button>
+          <button id="plus-time-btn" class="btn-icon-ghost" type="button" aria-label="Ajouter 5 minutes">+5 min</button>
+        </div>
         <div class="row action-row">
           <button id="start-timer-btn" class="btn-primary">▶ Démarrer</button>
           <button id="stop-timer-btn" class="btn-secondary">⏸ Arrêter</button>
@@ -100,10 +104,11 @@
       <div class="card advanced-card">
         <p class="field-hint">Exporte ou importe tes données (tâches &amp; historique) au format JSON.</p>
         <div class="row action-row">
-          <button id="export-btn" class="btn-secondary">Exporter (JSON)</button>
-          <button id="import-btn" class="btn-secondary">Importer un fichier</button>
+          <button id="export-btn" class="btn-secondary">⬇ Exporter mes données</button>
+          <button id="import-btn" class="btn-secondary">⬆ Importer une sauvegarde</button>
           <input id="import-file" type="file" accept="application/json" style="display:none" />
         </div>
+        <p id="last-export-hint" class="field-hint hidden"></p>
         <hr class="divider" />
         <button id="reset-demo-btn" class="btn-danger-ghost">Réinitialiser toutes les données</button>
       </div>
@@ -113,6 +118,20 @@
       <small>Prototype local — les données restent dans ton navigateur (localStorage).</small>
     </footer>
   </main>
+
+  <!-- Notifications discrètes (remplacent les alert() du navigateur) -->
+  <div id="toast-container" aria-live="polite"></div>
+
+  <!-- Boîte de confirmation intégrée (remplace les confirm() du navigateur) -->
+  <div id="confirm-modal" class="modal-overlay hidden">
+    <div class="modal-card" role="alertdialog" aria-modal="true" aria-labelledby="confirm-modal-title">
+      <p id="confirm-modal-title"></p>
+      <div class="row action-row modal-actions">
+        <button id="confirm-modal-cancel" class="btn-secondary">Annuler</button>
+        <button id="confirm-modal-ok" class="btn-danger-ghost">Confirmer</button>
+      </div>
+    </div>
+  </div>
 
   <script src="script.js" defer></script>
 </body>
