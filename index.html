@@ -4,6 +4,9 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Faiskifo — prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -13,61 +16,98 @@
   </header>
 
   <main>
-    <section id="add">
-      <h2>Ajouter une tâche</h2>
-      <input id="task-title" placeholder="Titre (ex : Ranger la cuisine)" />
-      <textarea id="task-steps" placeholder="Une étape par ligne (ex : Laver la vaisselle)"></textarea>
-      <button id="add-task-btn">Ajouter la tâche</button>
-    </section>
+    <!-- ============ AJOUTER UNE TÂCHE ============ -->
+    <section id="add" aria-labelledby="add-heading">
+      <h2 id="add-heading">Ajouter une tâche</h2>
 
-    <section id="actions">
-      <h2>Action</h2>
-      <div class="row">
-        <label for="timer-minutes">Durée (minutes) :</label>
-        <input id="timer-minutes" type="number" min="1" value="10" />
-        <button id="draw-step-btn">Piger une étape</button>
-        <button id="random-short-btn">Piger 5 min</button>
+      <label class="field-label" for="task-title">Titre de la tâche</label>
+      <input id="task-title" placeholder="ex : Ranger la cuisine" autocomplete="off" />
+
+      <label class="field-label" for="step-input">Étapes</label>
+      <p class="field-hint">Ajoute-les une à la fois — pas besoin de tout planifier d'un coup.</p>
+
+      <div class="step-composer">
+        <input id="step-input" placeholder="ex : Laver la vaisselle" autocomplete="off" />
+        <button id="add-step-btn" type="button" class="btn-secondary">+ Ajouter l'étape</button>
       </div>
 
-      <div id="current-step" class="card hidden">
+      <ul id="steps-preview" class="steps-preview"></ul>
+      <p id="steps-empty-hint" class="field-hint">Aucune étape ajoutée pour l'instant.</p>
+
+      <button id="add-task-btn" class="btn-primary btn-large">Créer la tâche</button>
+    </section>
+
+    <!-- ============ ACTION / FOCUS ============ -->
+    <section id="actions" aria-labelledby="actions-heading">
+      <h2 id="actions-heading">Se mettre en action</h2>
+
+      <label class="field-label" for="timer-minutes">Combien de temps veux-tu y consacrer ?</label>
+      <p class="field-hint">Cette durée s'applique à l'étape que tu vas piger ci-dessous — pas à toute la tâche.</p>
+      <div class="row">
+        <input id="timer-minutes" type="number" min="1" value="10" aria-label="Durée en minutes" />
+        <span class="unit-label">minutes</span>
+      </div>
+
+      <div class="row action-row">
+        <button id="draw-step-btn" class="btn-primary">🎲 Piger une étape</button>
+        <button id="random-short-btn" class="btn-secondary">Juste 5 min</button>
+      </div>
+
+      <div id="current-step" class="card current-step-card hidden">
         <h3>Étape en cours</h3>
         <p id="current-step-text"></p>
         <div id="timer">00:00</div>
-        <div class="row">
-          <button id="start-timer-btn">Démarrer</button>
-          <button id="stop-timer-btn">Arrêter</button>
-          <button id="mark-done-btn">Marquer comme terminée</button>
+        <div class="row action-row">
+          <button id="start-timer-btn" class="btn-primary">▶ Démarrer</button>
+          <button id="stop-timer-btn" class="btn-secondary">⏸ Arrêter</button>
+          <button id="mark-done-btn" class="btn-success">✓ Terminée</button>
         </div>
       </div>
-
-      <!-- Export / Import data controls -->
-      <div class="card">
-        <h3>Sauvegarde & Restauration</h3>
-        <p>Exporter ou importer tes données (tasks & historique) au format JSON.</p>
-        <div class="row">
-          <button id="export-btn">Exporter les données (JSON)</button>
-          <button id="import-btn">Importer un fichier JSON</button>
-          <input id="import-file" type="file" accept="application/json" style="display:none" />
-          <button id="reset-demo-btn" class="secondary">Reset demo</button>
-        </div>
-      </div>
-
     </section>
 
-    <section id="tasks">
-      <h2>Mes tâches & étapes</h2>
+    <!-- ============ TÂCHES & ÉTAPES ============ -->
+    <section id="tasks" aria-labelledby="tasks-heading">
+      <h2 id="tasks-heading">Mes tâches</h2>
       <div id="tasks-list"></div>
     </section>
 
-    <section id="dashboard">
-      <h2>Tableau de bord</h2>
-      <div class="card">
-        <p>Tâches complétées aujourd'hui : <strong id="today-count">0</strong></p>
-        <p>Minutes passées aujourd'hui : <strong id="today-mins">0</strong></p>
-        <p>Tâches complétées cette semaine : <strong id="week-count">0</strong></p>
-        <p>Minutes cette semaine : <strong id="week-mins">0</strong></p>
+    <!-- ============ TABLEAU DE BORD ============ -->
+    <section id="dashboard" aria-labelledby="dashboard-heading">
+      <h2 id="dashboard-heading">Tableau de bord</h2>
+      <div class="card dashboard-card">
+        <div class="stat">
+          <strong id="today-count">0</strong>
+          <span>tâches aujourd'hui</span>
+        </div>
+        <div class="stat">
+          <strong id="today-mins">0</strong>
+          <span>minutes aujourd'hui</span>
+        </div>
+        <div class="stat">
+          <strong id="week-count">0</strong>
+          <span>tâches cette semaine</span>
+        </div>
+        <div class="stat">
+          <strong id="week-mins">0</strong>
+          <span>minutes cette semaine</span>
+        </div>
       </div>
     </section>
+
+    <!-- ============ AVANCÉ (replié par défaut) ============ -->
+    <details id="advanced">
+      <summary>⚙️ Avancé — sauvegarde &amp; restauration</summary>
+      <div class="card advanced-card">
+        <p class="field-hint">Exporte ou importe tes données (tâches &amp; historique) au format JSON.</p>
+        <div class="row action-row">
+          <button id="export-btn" class="btn-secondary">Exporter (JSON)</button>
+          <button id="import-btn" class="btn-secondary">Importer un fichier</button>
+          <input id="import-file" type="file" accept="application/json" style="display:none" />
+        </div>
+        <hr class="divider" />
+        <button id="reset-demo-btn" class="btn-danger-ghost">Réinitialiser toutes les données</button>
+      </div>
+    </details>
 
     <footer>
       <small>Prototype local — les données restent dans ton navigateur (localStorage).</small>
