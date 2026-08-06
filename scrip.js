@@ -23,7 +23,10 @@ function id() { return Math.random().toString(36).slice(2,9); }
 /* UI helpers */
 const els = {
   addTitle: document.getElementById("task-title"),
-  addSteps: document.getElementById("task-steps"),
+  stepInput: document.getElementById("step-input"),
+  addStepBtn: document.getElementById("add-step-btn"),
+  stepsPreview: document.getElementById("steps-preview"),
+  stepsEmptyHint: document.getElementById("steps-empty-hint"),
   addBtn: document.getElementById("add-task-btn"),
   tasksList: document.getElementById("tasks-list"),
   drawBtn: document.getElementById("draw-step-btn"),
@@ -39,9 +42,41 @@ const els = {
   todayMins: document.getElementById("today-mins"),
   weekCount: document.getElementById("week-count"),
   weekMins: document.getElementById("week-mins"),
+  exportBtn: document.getElementById("export-btn"),
+  importBtn: document.getElementById("import-btn"),
+  importFile: document.getElementById("import-file"),
+  resetBtn: document.getElementById("reset-demo-btn"),
 };
 
 let current = null; // {taskId, stepId, remainingSeconds, running, startedAt}
+let pendingSteps = []; // étapes ajoutées une à une avant création de la tâche
+
+/* ---- Composition des étapes (nouveau flow, une étape à la fois) ---- */
+function renderStepsPreview(){
+  els.stepsPreview.innerHTML = "";
+  els.stepsEmptyHint.style.display = pendingSteps.length ? "none" : "block";
+  pendingSteps.forEach((text, i) => {
+    const li = document.createElement("li");
+    const label = document.createElement("span");
+    label.innerHTML = `<span class="step-number">${i+1}.</span>${text}`;
+    const rm = document.createElement("button");
+    rm.textContent = "✕";
+    rm.className = "btn-icon-ghost";
+    rm.onclick = () => { pendingSteps.splice(i,1); renderStepsPreview(); };
+    li.appendChild(label);
+    li.appendChild(rm);
+    els.stepsPreview.appendChild(li);
+  });
+}
+
+function addPendingStep(){
+  const val = els.stepInput.value.trim();
+  if(!val) return;
+  pendingSteps.push(val);
+  els.stepInput.value = "";
+  els.stepInput.focus();
+  renderStepsPreview();
+}
 
 function renderTasks(){
   els.tasksList.innerHTML = "";
@@ -61,9 +96,10 @@ function renderTasks(){
       const left = document.createElement("div");
       left.textContent = step.text;
       const right = document.createElement("div");
+      right.className = "step-actions";
       const markBtn = document.createElement("button");
       markBtn.textContent = step.done ? "À refaire" : "Marquer terminé";
-      markBtn.className = "secondary";
+      markBtn.className = step.done ? "btn-secondary" : "btn-primary";
       markBtn.onclick = ()=> {
         step.done = !step.done;
         if(step.done){
@@ -73,7 +109,8 @@ function renderTasks(){
         renderAll();
       };
       const delBtn = document.createElement("button");
-      delBtn.textContent = "Suppr";
+      delBtn.textContent = "✕";
+      delBtn.className = "btn-icon-ghost";
       delBtn.onclick = ()=> {
         if(confirm("Supprimer cette étape ?")) {
           task.steps = task.steps.filter(x=>x.id!==step.id);
@@ -87,15 +124,19 @@ function renderTasks(){
       div.appendChild(s);
     });
     // delete task
+    const footer = document.createElement("div");
+    footer.className = "task-footer";
     const delTaskBtn = document.createElement("button");
-    delTaskBtn.textContent = "Supprimer tâche";
+    delTaskBtn.textContent = "Supprimer la tâche";
+    delTaskBtn.className = "btn-danger-ghost";
     delTaskBtn.onclick = ()=> {
       if(confirm("Supprimer la tâche entière ?")) {
         state.tasks = state.tasks.filter(t=>t.id!==task.id);
         saveState(); renderAll();
       }
     };
-    div.appendChild(delTaskBtn);
+    footer.appendChild(delTaskBtn);
+    div.appendChild(footer);
     els.tasksList.appendChild(div);
   });
 }
@@ -192,18 +233,62 @@ function drawStep(minutes){
 
 function addTaskFromUI(){
   const title = els.addTitle.value.trim();
-  const raw = els.addSteps.value.trim();
-  if(!title || !raw){ alert("Titre et au moins une étape sont requis."); return; }
-  const steps = raw.split("\n").map(line=>line.trim()).filter(Boolean).map(s=>({id:id(), text:s, done:false}));
+  if(!title || pendingSteps.length === 0){
+    alert("Un titre et au moins une étape sont requis.");
+    return;
+  }
+  const steps = pendingSteps.map(s => ({id:id(), text:s, done:false}));
   const t = {id:id(), title, steps};
   state.tasks.push(t);
   saveState();
-  els.addTitle.value = ""; els.addSteps.value = "";
+  els.addTitle.value = "";
+  pendingSteps = [];
+  renderStepsPreview();
   renderAll();
+}
+
+/* ---- Export / Import / Reset (Avancé) ---- */
+function exportData(){
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "faiskifo-export.json";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData(file){
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const imported = JSON.parse(reader.result);
+      if(!imported.tasks || !imported.history) throw new Error("format invalide (tasks/history manquants)");
+      if(confirm("Remplacer toutes les données actuelles par ce fichier ?")){
+        state = imported;
+        saveState();
+        renderAll();
+      }
+    } catch(err){
+      alert("Fichier invalide : " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function resetData(){
+  if(confirm("Réinitialiser toutes les données ? Cette action est irréversible.")){
+    localStorage.removeItem(STORAGE_KEY);
+    location.reload();
+  }
 }
 
 /* Events */
 els.addBtn.onclick = addTaskFromUI;
+els.addStepBtn.onclick = addPendingStep;
+els.stepInput.addEventListener("keydown", (e) => {
+  if(e.key === "Enter"){ e.preventDefault(); addPendingStep(); }
+});
 els.drawBtn.onclick = ()=> drawStep(parseInt(els.timerMinutes.value||10,10));
 els.drawShortBtn.onclick = ()=> { els.timerMinutes.value = 5; drawStep(5); };
 els.startBtn.onclick = startTimer;
@@ -212,6 +297,15 @@ els.doneBtn.onclick = ()=> {
   const mins = Math.max(1, Math.round((current?.origSeconds - current?.remainingSeconds)/60) || Math.round((parseInt(els.timerMinutes.value,10)) ));
   recordCompletion(mins);
 };
+
+els.exportBtn.onclick = exportData;
+els.importBtn.onclick = () => els.importFile.click();
+els.importFile.onchange = (e) => {
+  const file = e.target.files[0];
+  if(file) importData(file);
+  els.importFile.value = "";
+};
+els.resetBtn.onclick = resetData;
 
 /* Init */
 function renderAll(){
@@ -222,6 +316,7 @@ function renderAll(){
 }
 
 loadState();
+renderStepsPreview();
 renderAll();
 
 // For first-time demo, add a sample if empty
