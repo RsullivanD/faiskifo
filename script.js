@@ -19,7 +19,10 @@ function id() { return Math.random().toString(36).slice(2,9); }
 /* UI refs */
 const els = {
   addTitle: document.getElementById("task-title"),
-  addSteps: document.getElementById("task-steps"),
+  stepInput: document.getElementById("step-input"),
+  addStepBtn: document.getElementById("add-step-btn"),
+  stepsPreview: document.getElementById("steps-preview"),
+  stepsEmptyHint: document.getElementById("steps-empty-hint"),
   addBtn: document.getElementById("add-task-btn"),
   tasksList: document.getElementById("tasks-list"),
   drawBtn: document.getElementById("draw-step-btn"),
@@ -44,6 +47,46 @@ const els = {
 let current = null; // {taskId, stepId, remainingSeconds, running, origSeconds}
 let timerInterval = null;
 
+/* Étapes en attente pour la tâche en cours de création */
+let pendingSteps = [];
+
+function renderStepsPreview(){
+  els.stepsPreview.innerHTML = "";
+  if(pendingSteps.length === 0){
+    els.stepsEmptyHint.classList.remove("hidden");
+    return;
+  }
+  els.stepsEmptyHint.classList.add("hidden");
+  pendingSteps.forEach((text, idx) => {
+    const li = document.createElement("li");
+
+    const label = document.createElement("span");
+    label.innerHTML = `<span class="step-number">${idx + 1}.</span>${text}`;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "btn-icon-ghost";
+    removeBtn.textContent = "✕";
+    removeBtn.addEventListener("click", () => {
+      pendingSteps.splice(idx, 1);
+      renderStepsPreview();
+    });
+
+    li.appendChild(label);
+    li.appendChild(removeBtn);
+    els.stepsPreview.appendChild(li);
+  });
+}
+
+function addStepFromUI(){
+  const text = els.stepInput.value.trim();
+  if(!text) return;
+  pendingSteps.push(text);
+  els.stepInput.value = "";
+  els.stepInput.focus();
+  renderStepsPreview();
+}
+
 /* Renderers */
 function renderTasks(){
   els.tasksList.innerHTML = "";
@@ -65,7 +108,7 @@ function renderTasks(){
       const right = document.createElement("div");
       const markBtn = document.createElement("button");
       markBtn.textContent = step.done ? "À refaire" : "Marquer terminé";
-      markBtn.className = "secondary";
+      markBtn.className = "btn-secondary";
       markBtn.onclick = ()=> {
         step.done = !step.done;
         if(step.done){
@@ -75,6 +118,7 @@ function renderTasks(){
       };
       const delBtn = document.createElement("button");
       delBtn.textContent = "Suppr";
+      delBtn.className = "btn-icon-ghost";
       delBtn.onclick = ()=> {
         if(confirm("Supprimer cette étape ?")) {
           task.steps = task.steps.filter(x=>x.id!==step.id);
@@ -87,15 +131,19 @@ function renderTasks(){
       s.appendChild(right);
       div.appendChild(s);
     });
+    const footer = document.createElement("div");
+    footer.className = "task-footer";
     const delTaskBtn = document.createElement("button");
     delTaskBtn.textContent = "Supprimer tâche";
+    delTaskBtn.className = "btn-danger-ghost";
     delTaskBtn.onclick = ()=> {
       if(confirm("Supprimer la tâche entière ?")) {
         state.tasks = state.tasks.filter(t=>t.id!==task.id);
         saveState(); renderAll();
       }
     };
-    div.appendChild(delTaskBtn);
+    footer.appendChild(delTaskBtn);
+    div.appendChild(footer);
     els.tasksList.appendChild(div);
   });
 }
@@ -140,7 +188,6 @@ function tick(){
   } else {
     stopTimer();
     alert("Temps écoulé !");
-    // Use total original minutes (at least 1)
     const mins = Math.max(1, Math.round((current.origSeconds || 0) / 60));
     recordCompletion(mins);
   }
@@ -192,13 +239,17 @@ function drawStep(minutes){
 
 function addTaskFromUI(){
   const title = els.addTitle.value.trim();
-  const raw = els.addSteps.value.trim();
-  if(!title || !raw){ alert("Titre et au moins une étape sont requis."); return; }
-  const steps = raw.split("\n").map(line=>line.trim()).filter(Boolean).map(s=>({id:id(), text:s, done:false}));
+  if(!title || pendingSteps.length === 0){
+    alert("Titre et au moins une étape sont requis.");
+    return;
+  }
+  const steps = pendingSteps.map(s=>({id:id(), text:s, done:false}));
   const t = {id:id(), title, steps};
   state.tasks.push(t);
   saveState();
-  els.addTitle.value = ""; els.addSteps.value = "";
+  els.addTitle.value = "";
+  pendingSteps = [];
+  renderStepsPreview();
   renderAll();
 }
 
@@ -239,6 +290,14 @@ function handleImportFile(file){
 }
 
 /* Event bindings */
+els.addStepBtn.onclick = addStepFromUI;
+els.stepInput.addEventListener("keydown", (e) => {
+  if(e.key === "Enter"){
+    e.preventDefault();
+    addStepFromUI();
+  }
+});
+
 els.addBtn.onclick = addTaskFromUI;
 els.drawBtn.onclick = ()=> drawStep(parseInt(els.timerMinutes.value||10,10));
 els.drawShortBtn.onclick = ()=> { els.timerMinutes.value = 5; drawStep(5); };
@@ -246,7 +305,6 @@ els.startBtn.onclick = startTimer;
 els.stopBtn.onclick = ()=> { stopTimer(); };
 els.doneBtn.onclick = ()=> {
   if(!current){
-    const val = Math.max(1, parseInt(els.timerMinutes.value||10,10));
     alert("Aucune étape en cours — enregistrement impossible.");
     return;
   }
@@ -286,6 +344,7 @@ els.resetDemoBtn.onclick = resetDemo;
 /* Init & demo */
 function renderAll(){ saveState(); renderTasks(); renderDashboard(); renderCurrent(); }
 loadState();
+renderStepsPreview();
 renderAll();
 
 if(state.tasks.length===0){
