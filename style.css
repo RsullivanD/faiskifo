@@ -35,3 +35,65 @@ button.secondary{background:#9aa0a6;color:white;border:1px solid rgba(0,0,0,0.06
   .row{flex-direction:column;align-items:stretch}
   button{width:100%}
 }
+/* --- Ajouts pour le nouveau flow de création de tâche --- */
+:root{
+  --success:#4caf82;
+  --danger:#c65b3f;
+}
+
+/* alias : ton bouton par défaut EST déjà le style "primaire" */
+.btn-primary{ background:var(--accent); color:white; }
+.btn-secondary{ background:#9aa0a6; color:white; border:1px solid rgba(0,0,0,0.06); }
+.btn-large{ width:100%; padding:14px; font-size:1.05rem; margin-top:12px; }
+.btn-success{ background:var(--success); color:white; }
+.btn-danger-ghost{
+  background:transparent; color:var(--danger);
+  border:1px solid rgba(198,91,63,0.3); font-weight:500; font-size:0.85rem;
+}
+.btn-danger-ghost:hover{ background:rgba(198,91,63,0.08); }
+.btn-icon-ghost{
+  background:transparent; color:var(--muted);
+  font-weight:500; padding:4px 8px;
+}
+.btn-icon-ghost:hover{ color:var(--danger); }
+
+/* saisie d'étapes une par une */
+.step-composer{ display:flex; gap:8px; }
+.step-composer input{ flex:1; }
+.steps-preview{ list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:6px; }
+.steps-preview li{
+  display:flex; justify-content:space-between; align-items:center;
+  background:#eef2ff; border-radius:6px; padding:8px 10px; font-size:0.92rem;
+}
+.step-number{ color:var(--accent); font-weight:700; margin-right:6px; }
+
+/* labels et aide contextuelle */
+.field-label{ display:block; font-weight:600; font-size:0.9rem; margin:14px 0 4px; }
+.field-hint{ color:var(--muted); font-size:0.85rem; margin:0 0 6px; }
+
+/* carte "étape en cours" mise en évidence */
+.current-step-card{ border:2px solid var(--accent); text-align:center; }
+
+.unit-label{ color:var(--muted); font-size:0.9rem; }
+.action-row{ margin-top:10px; }
+
+/* tableau de bord en grille */
+.dashboard-card{ display:grid; grid-template-columns:repeat(2,1fr); gap:12px; box-shadow:none; padding:0; background:transparent; }
+.stat{ display:flex; flex-direction:column; gap:2px; }
+.stat strong{ font-size:1.5rem; color:var(--accent); }
+.stat span{ color:var(--muted); font-size:0.8rem; }
+
+.advanced-card{ margin-top:8px; }
+.divider{ border:none; border-top:1px solid #e6e9f2; margin:12px 0; }
+.task-footer{ margin-top:8px; padding-top:8px; border-top:1px solid #e6e9f2; display:flex; justify-content:flex-end; }
+.step-actions{ display:flex; gap:6px; flex:none; }
+
+/* menu Avancé replié */
+#advanced{ background:transparent; box-shadow:none; }
+#advanced summary{
+  cursor:pointer; color:var(--muted); font-weight:600; font-size:0.9rem; padding:8px 4px; list-style:none;
+}
+#advanced summary::-webkit-details-marker{ display:none; }
+#advanced summary:hover{ color:#111; }
+
+#timer-minutes{ width:80px; flex:none; }
