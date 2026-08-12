@@ -21,10 +21,26 @@
     <section id="auth" aria-labelledby="auth-heading">
       <h2 id="auth-heading">Se connecter</h2>
       <div id="auth-logged-out">
-        <p class="field-hint">Reçois un lien de connexion par courriel — pas de mot de passe à retenir.</p>
-        <div class="row">
+        <div class="auth-method-toggle" role="group" aria-label="Méthode de connexion">
+          <button id="method-password-btn" class="auth-method-btn auth-method-active" aria-pressed="true" type="button">🔑 Mot de passe</button>
+          <button id="method-otp-btn" class="auth-method-btn" aria-pressed="false" type="button">📧 Code par courriel</button>
+        </div>
+
+        <!-- Formulaire : mot de passe -->
+        <div id="auth-form-password">
+          <p class="field-hint">Entre ton courriel et ton mot de passe.</p>
           <input id="auth-email" type="email" placeholder="ton@courriel.com" autocomplete="email" />
-          <button id="auth-send-btn" class="btn-primary">Envoyer le lien</button>
+          <input id="auth-password" type="password" placeholder="Mot de passe" autocomplete="current-password" />
+          <button id="auth-login-btn" class="btn-primary btn-full">Se connecter</button>
+          <p id="auth-password-status" class="auth-status hidden"></p>
+        </div>
+
+        <!-- Formulaire : code par courriel -->
+        <div id="auth-form-otp" class="hidden">
+          <p class="field-hint">Reçois un code à usage unique ou un lien magique par courriel.</p>
+          <input id="auth-email-otp" type="email" placeholder="ton@courriel.com" autocomplete="email" />
+          <button id="auth-send-btn" class="btn-primary btn-full">Envoyer le code</button>
+          <p id="auth-otp-status" class="auth-status hidden"></p>
         </div>
       </div>
       <div id="auth-logged-in" class="hidden">
