@@ -161,7 +161,7 @@ function renderTaskOptions(){
   const categoryId = els.categorySelect.value;
   const current = els.taskSelect.value;
   const filtered = categoryId
-    ? catalogTasks.filter(t => t.category_id === categoryId)
+    ? catalogTasks.filter(t => String(t.category_id) === categoryId)
     : catalogTasks;
 
   els.taskSelect.innerHTML = '<option value="">Choisis une tâche</option>';
@@ -174,7 +174,7 @@ function renderTaskOptions(){
     els.taskSelect.appendChild(opt);
   });
   // garde la tâche sélectionnée si elle existe encore dans la liste filtrée
-  els.taskSelect.value = filtered.some(t => t.id === current) ? current : "";
+  els.taskSelect.value = filtered.some(t => String(t.id) === current) ? current : "";
 }
 
 /* ============ Renderers ============ */
@@ -352,12 +352,10 @@ els.doneBtn.onclick = ()=> {
 };
 
 /* ============ Démarrage : vérifie s'il y a déjà une session ============ */
+// onAuthStateChange émet un événement INITIAL_SESSION au démarrage,
+// ce qui couvre à la fois la session déjà active ET l'arrivée via lien magique.
+// Plus besoin d'appeler getSession() séparément, on évite ainsi le double chargement.
 sb.auth.onAuthStateChange((_event, session) => {
   if(session?.user){ showLoggedIn(session.user); }
-  else { showLoggedOut(); }
-});
-
-sb.auth.getSession().then(({ data }) => {
-  if(data?.session?.user){ showLoggedIn(data.session.user); }
   else { showLoggedOut(); }
 });
