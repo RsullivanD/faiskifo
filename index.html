@@ -8,6 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 </head>
 <body>
   <header>
@@ -16,8 +17,24 @@
   </header>
 
   <main>
-    <!-- ============ AJOUTER UNE TÂCHE ============ -->
-    <section id="add" aria-labelledby="add-heading">
+    <!-- ============ CONNEXION ============ -->
+    <section id="auth" aria-labelledby="auth-heading">
+      <h2 id="auth-heading">Se connecter</h2>
+      <div id="auth-logged-out">
+        <p class="field-hint">Reçois un lien de connexion par courriel — pas de mot de passe à retenir.</p>
+        <div class="row">
+          <input id="auth-email" type="email" placeholder="ton@courriel.com" autocomplete="email" />
+          <button id="auth-send-btn" class="btn-primary">Envoyer le lien</button>
+        </div>
+      </div>
+      <div id="auth-logged-in" class="hidden">
+        <p class="field-hint">Connectée en tant que <strong id="auth-user-email"></strong></p>
+        <button id="auth-logout-btn" class="btn-secondary">Se déconnecter</button>
+      </div>
+    </section>
+
+    <!-- ============ AJOUTER UNE TÂCHE (réservé — version payante à venir) ============ -->
+    <section id="add" aria-labelledby="add-heading" class="hidden">
       <h2 id="add-heading">Ajouter une tâche</h2>
 
       <label class="field-label" for="task-title">Titre de la tâche</label>
@@ -28,6 +45,7 @@
 
       <div class="step-composer">
         <input id="step-input" placeholder="ex : Laver la vaisselle" autocomplete="off" />
+        <input id="step-minutes-input" type="number" min="1" value="5" class="step-minutes-input" aria-label="Durée estimée en minutes" />
         <button id="add-step-btn" type="button" class="btn-secondary">+ Ajouter l'étape</button>
       </div>
 
@@ -37,12 +55,24 @@
       <button id="add-task-btn" class="btn-primary btn-large">Créer la tâche</button>
     </section>
 
+    <div id="app-content" class="hidden">
     <!-- ============ ACTION / FOCUS ============ -->
     <section id="actions" aria-labelledby="actions-heading">
       <h2 id="actions-heading">Se mettre en action</h2>
 
-      <label class="field-label" for="timer-minutes">Combien de temps veux-tu y consacrer ?</label>
-      <p class="field-hint">Cette durée s'applique à l'étape que tu vas piger ci-dessous — pas à toute la tâche.</p>
+      <label class="field-label" for="category-select">Catégorie</label>
+      <select id="category-select" class="row">
+        <option value="">Toutes les catégories</option>
+      </select>
+
+      <label class="field-label" for="task-select">Tâche</label>
+      <select id="task-select" class="row">
+        <option value="">Choisis une tâche</option>
+      </select>
+      <p class="field-hint">La pige restera sur cette tâche jusqu'à ce qu'elle soit terminée.</p>
+
+      <label class="field-label" for="timer-minutes">Combien de temps as-tu devant toi ?</label>
+      <p class="field-hint">La pige choisira une étape qui rentre dans ce temps.</p>
       <div class="row">
         <input id="timer-minutes" type="number" min="1" value="10" aria-label="Durée en minutes" />
         <span class="unit-label">minutes</span>
@@ -69,9 +99,10 @@
       </div>
     </section>
 
-    <!-- ============ TÂCHES & ÉTAPES ============ -->
+    <!-- ============ CATALOGUE DE TÂCHES ============ -->
     <section id="tasks" aria-labelledby="tasks-heading">
-      <h2 id="tasks-heading">Mes tâches</h2>
+      <h2 id="tasks-heading">Tâches disponibles</h2>
+      <p class="field-hint">Ta progression sur chaque tâche du catalogue.</p>
       <div id="tasks-list"></div>
     </section>
 
@@ -98,24 +129,10 @@
       </div>
     </section>
 
-    <!-- ============ AVANCÉ (replié par défaut) ============ -->
-    <details id="advanced">
-      <summary>⚙️ Avancé — sauvegarde &amp; restauration</summary>
-      <div class="card advanced-card">
-        <p class="field-hint">Exporte ou importe tes données (tâches &amp; historique) au format JSON.</p>
-        <div class="row action-row">
-          <button id="export-btn" class="btn-secondary">⬇ Exporter mes données</button>
-          <button id="import-btn" class="btn-secondary">⬆ Importer une sauvegarde</button>
-          <input id="import-file" type="file" accept="application/json" style="display:none" />
-        </div>
-        <p id="last-export-hint" class="field-hint hidden"></p>
-        <hr class="divider" />
-        <button id="reset-demo-btn" class="btn-danger-ghost">Réinitialiser toutes les données</button>
-      </div>
-    </details>
+    </div>
 
     <footer>
-      <small>Prototype local — les données restent dans ton navigateur (localStorage).</small>
+      <small>Faiskifo — tes données sont sauvegardées en ligne, liées à ton compte.</small>
     </footer>
   </main>
 
