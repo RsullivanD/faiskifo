@@ -20,8 +20,21 @@ let timerInterval = null;
 const els = {
   authLoggedOut: document.getElementById("auth-logged-out"),
   authLoggedIn: document.getElementById("auth-logged-in"),
+  // password form
+  authFormPassword: document.getElementById("auth-form-password"),
   authEmail: document.getElementById("auth-email"),
+  authPassword: document.getElementById("auth-password"),
+  authLoginBtn: document.getElementById("auth-login-btn"),
+  authPasswordStatus: document.getElementById("auth-password-status"),
+  // otp form
+  authFormOtp: document.getElementById("auth-form-otp"),
+  authEmailOtp: document.getElementById("auth-email-otp"),
   authSendBtn: document.getElementById("auth-send-btn"),
+  authOtpStatus: document.getElementById("auth-otp-status"),
+  // method toggle
+  methodPasswordBtn: document.getElementById("method-password-btn"),
+  methodOtpBtn: document.getElementById("method-otp-btn"),
+  // logged-in
   authUserEmail: document.getElementById("auth-user-email"),
   authLogoutBtn: document.getElementById("auth-logout-btn"),
   appContent: document.getElementById("app-content"),
@@ -80,23 +93,73 @@ function askConfirm(message){
 }
 
 /* ============ Authentification ============ */
-async function sendMagicLink(){
+let otpResendCooldown = null;
+
+function setAuthStatus(el, message, type) {
+  el.textContent = message;
+  el.className = "auth-status" + (type === "error" ? " auth-status-error" : type === "success" ? " auth-status-success" : "");
+  el.classList.remove("hidden");
+}
+
+function clearAuthStatus(el) {
+  el.classList.add("hidden");
+  el.textContent = "";
+}
+
+async function loginWithPassword() {
   const email = els.authEmail.value.trim();
-  if(!email){
-    toast("Entre ton courriel d'abord.", "error");
+  const password = els.authPassword.value;
+  if (!email || !password) {
+    setAuthStatus(els.authPasswordStatus, "Entre ton courriel et ton mot de passe.", "error");
+    return;
+  }
+  els.authLoginBtn.disabled = true;
+  els.authLoginBtn.textContent = "Connexion…";
+  clearAuthStatus(els.authPasswordStatus);
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  els.authLoginBtn.disabled = false;
+  els.authLoginBtn.textContent = "Se connecter";
+  if (error) {
+    setAuthStatus(els.authPasswordStatus, "Erreur : " + error.message, "error");
+    return;
+  }
+  clearAuthStatus(els.authPasswordStatus);
+}
+
+async function sendMagicLink() {
+  const email = els.authEmailOtp.value.trim();
+  if (!email) {
+    setAuthStatus(els.authOtpStatus, "Entre ton courriel d'abord.", "error");
+    return;
+  }
+  if (otpResendCooldown) {
+    setAuthStatus(els.authOtpStatus, "Patiente quelques secondes avant de renvoyer.", "error");
     return;
   }
   els.authSendBtn.disabled = true;
+  clearAuthStatus(els.authOtpStatus);
   const { error } = await sb.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: window.location.href }
   });
-  els.authSendBtn.disabled = false;
-  if(error){
-    toast("Erreur : " + error.message, "error");
+  if (error) {
+    setAuthStatus(els.authOtpStatus, "Erreur : " + error.message, "error");
+    els.authSendBtn.disabled = false;
     return;
   }
-  toast("Lien envoyé ! Vérifie ta boîte courriel 📬", "success");
+  setAuthStatus(els.authOtpStatus, "Code envoyé ! Vérifie ta boîte courriel 📬", "success");
+  // cooldown 60 s to avoid rate-limit hammering
+  let remaining = 60;
+  otpResendCooldown = setInterval(() => {
+    remaining--;
+    els.authSendBtn.textContent = `Renvoyer (${remaining}s)`;
+    if (remaining <= 0) {
+      clearInterval(otpResendCooldown);
+      otpResendCooldown = null;
+      els.authSendBtn.disabled = false;
+      els.authSendBtn.textContent = "Envoyer le code";
+    }
+  }, 1000);
 }
 
 async function logout(){
@@ -328,9 +391,33 @@ function drawStep(availableMinutes){
   els.currentCard.scrollIntoView({behavior:"smooth", block:"center"});
 }
 
+/* ============ Auth method toggle ============ */
+function switchAuthMethod(method) {
+  if (method === "password") {
+    els.authFormPassword.classList.remove("hidden");
+    els.authFormOtp.classList.add("hidden");
+    els.methodPasswordBtn.classList.add("auth-method-active");
+    els.methodPasswordBtn.setAttribute("aria-pressed", "true");
+    els.methodOtpBtn.classList.remove("auth-method-active");
+    els.methodOtpBtn.setAttribute("aria-pressed", "false");
+  } else {
+    els.authFormOtp.classList.remove("hidden");
+    els.authFormPassword.classList.add("hidden");
+    els.methodOtpBtn.classList.add("auth-method-active");
+    els.methodOtpBtn.setAttribute("aria-pressed", "true");
+    els.methodPasswordBtn.classList.remove("auth-method-active");
+    els.methodPasswordBtn.setAttribute("aria-pressed", "false");
+  }
+}
+
 /* ============ Event bindings ============ */
+els.methodPasswordBtn.onclick = () => switchAuthMethod("password");
+els.methodOtpBtn.onclick = () => switchAuthMethod("otp");
+els.authLoginBtn.onclick = loginWithPassword;
+els.authEmail.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); loginWithPassword(); } });
+els.authPassword.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); loginWithPassword(); } });
 els.authSendBtn.onclick = sendMagicLink;
-els.authEmail.addEventListener("keydown", (e) => { if(e.key === "Enter"){ e.preventDefault(); sendMagicLink(); } });
+els.authEmailOtp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); sendMagicLink(); } });
 els.authLogoutBtn.onclick = logout;
 els.categorySelect.addEventListener("change", renderTaskOptions);
 

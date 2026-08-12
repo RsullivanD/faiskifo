@@ -97,3 +97,23 @@ button.secondary{background:#9aa0a6;color:white;border:1px solid rgba(0,0,0,0.06
 #advanced summary:hover{ color:#111; }
 
 #timer-minutes{ width:80px; flex:none; }
+/* ============ Auth method toggle ============ */
+.auth-method-toggle{
+  display:flex; gap:8px; margin-bottom:16px;
+}
+.auth-method-btn{
+  flex:1; padding:10px 12px; border-radius:8px;
+  border:2px solid #d0d5dd; background:white; color:var(--muted);
+  font-weight:600; font-size:0.9rem; cursor:pointer; transition:all .15s;
+}
+.auth-method-btn:hover{ border-color:var(--accent); color:var(--accent); }
+.auth-method-active{
+  border-color:var(--accent) !important; background:var(--accent) !important;
+  color:white !important;
+}
+.btn-full{ width:100%; }
+#auth-form-password input,
+#auth-form-otp input{ display:block; width:100%; box-sizing:border-box; margin-bottom:10px; }
+.auth-status{ font-size:0.88rem; margin-top:8px; padding:8px 12px; border-radius:6px; }
+.auth-status-error{ background:#fdecea; color:var(--danger); }
+.auth-status-success{ background:#e8f5e9; color:#2e7d32; }
