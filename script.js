@@ -1,36 +1,42 @@
-// Simple state stored in localStorage under key 'faiskifo_data'
-const STORAGE_KEY = "faiskifo_data";
+/* ============ Connexion à Supabase ============ */
+const SUPABASE_URL = "https://gnbjxvoxktxhxnkpfgtb.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_zwAIBLWPlRd4dMoCOY2UEw_d7dQfs5u";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 function now() { return new Date(); }
 function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
 function startOfWeek(d){ const x=new Date(d); const day=x.getDay(); const diff = x.getDate() - day + (day===0? -6:1); x.setDate(diff); x.setHours(0,0,0,0); return x; }
 
-let state = { tasks: [], history: [] };
+let currentUser = null;      // objet utilisateur Supabase, ou null si pas connecté
+let catalogTasks = [];       // tâches du catalogue (table "tasks")
+let catalogSteps = [];       // étapes du catalogue (table "task_steps")
+let catalogCategories = [];  // catégories (table "categories")
+let completedStepIds = [];   // ids des étapes déjà faites par cet utilisateur
 
-function loadState(){
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if(raw){
-    try{ state = JSON.parse(raw); }catch(e){ console.warn("parse err",e) }
-  }
-}
-function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-function id() { return Math.random().toString(36).slice(2,9); }
+let current = null; // {stepId, taskId, remainingSeconds, running, origSeconds}
+let timerInterval = null;
 
-/* UI refs */
+/* ============ UI refs ============ */
 const els = {
-  addTitle: document.getElementById("task-title"),
-  stepInput: document.getElementById("step-input"),
-  addStepBtn: document.getElementById("add-step-btn"),
-  stepsPreview: document.getElementById("steps-preview"),
-  stepsEmptyHint: document.getElementById("steps-empty-hint"),
-  addBtn: document.getElementById("add-task-btn"),
+  authLoggedOut: document.getElementById("auth-logged-out"),
+  authLoggedIn: document.getElementById("auth-logged-in"),
+  authEmail: document.getElementById("auth-email"),
+  authSendBtn: document.getElementById("auth-send-btn"),
+  authUserEmail: document.getElementById("auth-user-email"),
+  authLogoutBtn: document.getElementById("auth-logout-btn"),
+  appContent: document.getElementById("app-content"),
+
   tasksList: document.getElementById("tasks-list"),
+  categorySelect: document.getElementById("category-select"),
+  taskSelect: document.getElementById("task-select"),
   drawBtn: document.getElementById("draw-step-btn"),
   drawShortBtn: document.getElementById("random-short-btn"),
   timerMinutes: document.getElementById("timer-minutes"),
   currentCard: document.getElementById("current-step"),
   currentText: document.getElementById("current-step-text"),
   timerDisplay: document.getElementById("timer"),
+  minusTimeBtn: document.getElementById("minus-time-btn"),
+  plusTimeBtn: document.getElementById("plus-time-btn"),
   startBtn: document.getElementById("start-timer-btn"),
   stopBtn: document.getElementById("stop-timer-btn"),
   doneBtn: document.getElementById("mark-done-btn"),
@@ -38,129 +44,181 @@ const els = {
   todayMins: document.getElementById("today-mins"),
   weekCount: document.getElementById("week-count"),
   weekMins: document.getElementById("week-mins"),
-  exportBtn: document.getElementById("export-btn"),
-  importBtn: document.getElementById("import-btn"),
-  importFile: document.getElementById("import-file"),
-  resetDemoBtn: document.getElementById("reset-demo-btn")
+
+  toastContainer: document.getElementById("toast-container"),
+  confirmModal: document.getElementById("confirm-modal"),
+  confirmModalTitle: document.getElementById("confirm-modal-title"),
+  confirmModalOk: document.getElementById("confirm-modal-ok"),
+  confirmModalCancel: document.getElementById("confirm-modal-cancel"),
 };
 
-let current = null; // {taskId, stepId, remainingSeconds, running, origSeconds}
-let timerInterval = null;
+/* ============ Toasts ============ */
+function toast(message, type = "info"){
+  const t = document.createElement("div");
+  t.className = "toast" + (type === "success" ? " toast-success" : type === "error" ? " toast-error" : "");
+  t.textContent = message;
+  els.toastContainer.appendChild(t);
+  setTimeout(() => t.remove(), 2900);
+}
 
-/* Étapes en attente pour la tâche en cours de création */
-let pendingSteps = [];
-
-function renderStepsPreview(){
-  els.stepsPreview.innerHTML = "";
-  if(pendingSteps.length === 0){
-    els.stepsEmptyHint.classList.remove("hidden");
-    return;
-  }
-  els.stepsEmptyHint.classList.add("hidden");
-  pendingSteps.forEach((text, idx) => {
-    const li = document.createElement("li");
-
-    const label = document.createElement("span");
-    label.innerHTML = `<span class="step-number">${idx + 1}.</span>${text}`;
-
-    const removeBtn = document.createElement("button");
-    removeBtn.type = "button";
-    removeBtn.className = "btn-icon-ghost";
-    removeBtn.textContent = "✕";
-    removeBtn.addEventListener("click", () => {
-      pendingSteps.splice(idx, 1);
-      renderStepsPreview();
-    });
-
-    li.appendChild(label);
-    li.appendChild(removeBtn);
-    els.stepsPreview.appendChild(li);
+/* ============ Confirmation intégrée ============ */
+function askConfirm(message){
+  return new Promise((resolve) => {
+    els.confirmModalTitle.textContent = message;
+    els.confirmModal.classList.remove("hidden");
+    function cleanup(result){
+      els.confirmModal.classList.add("hidden");
+      els.confirmModalOk.removeEventListener("click", onOk);
+      els.confirmModalCancel.removeEventListener("click", onCancel);
+      resolve(result);
+    }
+    function onOk(){ cleanup(true); }
+    function onCancel(){ cleanup(false); }
+    els.confirmModalOk.addEventListener("click", onOk);
+    els.confirmModalCancel.addEventListener("click", onCancel);
   });
 }
 
-function addStepFromUI(){
-  const text = els.stepInput.value.trim();
-  if(!text) return;
-  pendingSteps.push(text);
-  els.stepInput.value = "";
-  els.stepInput.focus();
-  renderStepsPreview();
-}
-
-/* Renderers */
-function renderTasks(){
-  els.tasksList.innerHTML = "";
-  if(state.tasks.length===0){
-    els.tasksList.innerHTML = "<p>Aucune tâche pour l'instant. Ajoute une tâche au-dessus.</p>";
+/* ============ Authentification ============ */
+async function sendMagicLink(){
+  const email = els.authEmail.value.trim();
+  if(!email){
+    toast("Entre ton courriel d'abord.", "error");
     return;
   }
-  state.tasks.forEach(task=>{
+  els.authSendBtn.disabled = true;
+  const { error } = await sb.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: window.location.href }
+  });
+  els.authSendBtn.disabled = false;
+  if(error){
+    toast("Erreur : " + error.message, "error");
+    return;
+  }
+  toast("Lien envoyé ! Vérifie ta boîte courriel 📬", "success");
+}
+
+async function logout(){
+  await sb.auth.signOut();
+  currentUser = null;
+  showLoggedOut();
+}
+
+function showLoggedOut(){
+  els.authLoggedOut.classList.remove("hidden");
+  els.authLoggedIn.classList.add("hidden");
+  els.appContent.classList.add("hidden");
+}
+
+async function showLoggedIn(user){
+  currentUser = user;
+  els.authLoggedOut.classList.add("hidden");
+  els.authLoggedIn.classList.remove("hidden");
+  els.authUserEmail.textContent = user.email;
+  els.appContent.classList.remove("hidden");
+  await loadCatalogAndProgress();
+}
+
+/* ============ Charger le catalogue + la progression ============ */
+async function loadCatalogAndProgress(){
+  const [{ data: cats, error: catsErr }, { data: tasks, error: tasksErr }, { data: steps, error: stepsErr }, { data: done, error: doneErr }] = await Promise.all([
+    sb.from("categories").select("id, name, icon"),
+    sb.from("tasks").select("id, name, category_id, age_range"),
+    sb.from("task_steps").select("id, task_id, step_order, description, duration_seconds").order("step_order"),
+    sb.from("user_step_completions").select("step_id").eq("user_id", currentUser.id)
+  ]);
+
+  if(catsErr || tasksErr || stepsErr || doneErr){
+    toast("Impossible de charger le catalogue. Réessaie plus tard.", "error");
+    console.error(catsErr || tasksErr || stepsErr || doneErr);
+    return;
+  }
+
+  catalogCategories = cats || [];
+  catalogTasks = tasks || [];
+  catalogSteps = steps || [];
+  completedStepIds = (done || []).map(d => d.step_id);
+
+  renderCategoryOptions();
+  renderAll();
+}
+
+function renderCategoryOptions(){
+  const current = els.categorySelect.value;
+  els.categorySelect.innerHTML = '<option value="">Toutes les catégories</option>';
+  catalogCategories.forEach(cat => {
+    const opt = document.createElement("option");
+    opt.value = cat.id;
+    opt.textContent = (cat.icon ? cat.icon + " " : "") + cat.name;
+    els.categorySelect.appendChild(opt);
+  });
+  els.categorySelect.value = current;
+  renderTaskOptions();
+}
+
+function renderTaskOptions(){
+  const categoryId = els.categorySelect.value;
+  const current = els.taskSelect.value;
+  const filtered = categoryId
+    ? catalogTasks.filter(t => t.category_id === categoryId)
+    : catalogTasks;
+
+  els.taskSelect.innerHTML = '<option value="">Choisis une tâche</option>';
+  filtered.forEach(task => {
+    const steps = catalogSteps.filter(s => s.task_id === task.id);
+    const remaining = steps.filter(s => !completedStepIds.includes(s.id)).length;
+    const opt = document.createElement("option");
+    opt.value = task.id;
+    opt.textContent = task.name + (steps.length ? ` (${remaining}/${steps.length} restantes)` : "");
+    els.taskSelect.appendChild(opt);
+  });
+  // garde la tâche sélectionnée si elle existe encore dans la liste filtrée
+  els.taskSelect.value = filtered.some(t => t.id === current) ? current : "";
+}
+
+/* ============ Renderers ============ */
+function renderTasks(){
+  els.tasksList.innerHTML = "";
+  if(catalogTasks.length === 0){
+    els.tasksList.innerHTML = "<p>Aucune tâche disponible pour l'instant.</p>";
+    return;
+  }
+  catalogTasks.forEach(task=>{
+    const steps = catalogSteps.filter(s => s.task_id === task.id);
+    const total = steps.length;
+    const doneCount = steps.filter(s => completedStepIds.includes(s.id)).length;
+    const pct = total > 0 ? Math.round((doneCount/total)*100) : 0;
+
     const div = document.createElement("div");
-    div.className="task card";
-    const title = document.createElement("h3");
-    title.textContent = task.title;
-    div.appendChild(title);
-    task.steps.forEach(step=>{
-      const s = document.createElement("div");
-      s.className = "step" + (step.done ? " done": "");
-      const left = document.createElement("div");
-      left.textContent = step.text;
-      const right = document.createElement("div");
-      const markBtn = document.createElement("button");
-      markBtn.textContent = step.done ? "À refaire" : "Marquer terminé";
-      markBtn.className = "btn-secondary";
-      markBtn.onclick = ()=> {
-        step.done = !step.done;
-        if(step.done){
-          state.history.push({ts: now().toISOString(), minutes: 0, taskId: task.id, stepId: step.id});
-        }
-        saveState(); renderAll();
-      };
-      const delBtn = document.createElement("button");
-      delBtn.textContent = "Suppr";
-      delBtn.className = "btn-icon-ghost";
-      delBtn.onclick = ()=> {
-        if(confirm("Supprimer cette étape ?")) {
-          task.steps = task.steps.filter(x=>x.id!==step.id);
-          saveState(); renderAll();
-        }
-      };
-      right.appendChild(markBtn);
-      right.appendChild(delBtn);
-      s.appendChild(left);
-      s.appendChild(right);
-      div.appendChild(s);
-    });
-    const footer = document.createElement("div");
-    footer.className = "task-footer";
-    const delTaskBtn = document.createElement("button");
-    delTaskBtn.textContent = "Supprimer tâche";
-    delTaskBtn.className = "btn-danger-ghost";
-    delTaskBtn.onclick = ()=> {
-      if(confirm("Supprimer la tâche entière ?")) {
-        state.tasks = state.tasks.filter(t=>t.id!==task.id);
-        saveState(); renderAll();
-      }
-    };
-    footer.appendChild(delTaskBtn);
-    div.appendChild(footer);
+    div.className = "task card";
+    div.innerHTML = `
+      <h3>${task.name}</h3>
+      <div class="task-progress-wrap">
+        <div class="task-progress-track"><div class="task-progress-fill" style="width:${pct}%"></div></div>
+        <span class="task-progress-label">${doneCount} / ${total} étapes${pct===100 && total>0 ? " · terminée 🎉" : ""}</span>
+      </div>
+    `;
     els.tasksList.appendChild(div);
   });
 }
 
-function renderDashboard(){
-  const h = state.history.map(it => ({...it, date:new Date(it.ts)}));
+async function renderDashboard(){
+  const { data: history, error } = await sb
+    .from("user_step_completions")
+    .select("completed_at, duration_seconds")
+    .eq("user_id", currentUser.id);
+
+  if(error){ console.error(error); return; }
+
   const today = startOfDay(now()), week = startOfWeek(now());
-  const todayItems = h.filter(i => new Date(i.ts) >= today);
-  const weekItems = h.filter(i => new Date(i.ts) >= week);
-  const todayCount = todayItems.filter(i=>i.minutes>0).length;
-  const todayMins = todayItems.reduce((s,i)=>s+i.minutes,0);
-  const weekCount = weekItems.filter(i=>i.minutes>0).length;
-  const weekMins = weekItems.reduce((s,i)=>s+i.minutes,0);
-  els.todayCount.textContent = todayCount;
-  els.todayMins.textContent = todayMins;
-  els.weekCount.textContent = weekCount;
-  els.weekMins.textContent = weekMins;
+  const todayItems = (history||[]).filter(i => new Date(i.completed_at) >= today);
+  const weekItems = (history||[]).filter(i => new Date(i.completed_at) >= week);
+
+  els.todayCount.textContent = todayItems.length;
+  els.todayMins.textContent = Math.round(todayItems.reduce((s,i)=>s+(i.duration_seconds||0),0)/60);
+  els.weekCount.textContent = weekItems.length;
+  els.weekMins.textContent = Math.round(weekItems.reduce((s,i)=>s+(i.duration_seconds||0),0)/60);
 }
 
 function renderCurrent(){
@@ -169,17 +227,25 @@ function renderCurrent(){
     return;
   }
   els.currentCard.classList.remove("hidden");
-  const task = state.tasks.find(t=>t.id===current.taskId);
-  const step = task?.steps.find(s=>s.id===current.stepId);
-  els.currentText.textContent = (task?.title||"") + " — " + (step?.text||"");
+  const step = catalogSteps.find(s => s.id === current.stepId);
+  const task = catalogTasks.find(t => t.id === current.taskId);
+  els.currentText.textContent = (task?.name || "") + " — " + (step?.description || "");
   const mm = Math.floor(current.remainingSeconds/60);
   const ss = current.remainingSeconds%60;
   els.timerDisplay.textContent = `${String(mm).padStart(2,"0")}:${String(ss).padStart(2,"0")}`;
   els.startBtn.disabled = current.running;
   els.stopBtn.disabled = !current.running;
+  els.minusTimeBtn.disabled = current.remainingSeconds <= 60;
 }
 
-/* Timer */
+function renderAll(){
+  renderTaskOptions();
+  renderTasks();
+  renderDashboard();
+  renderCurrent();
+}
+
+/* ============ Timer ============ */
 function tick(){
   if(!current || !current.running) return;
   if(current.remainingSeconds>0){
@@ -187,15 +253,14 @@ function tick(){
     renderCurrent();
   } else {
     stopTimer();
-    alert("Temps écoulé !");
+    toast("Temps écoulé ! ⏰", "success");
     const mins = Math.max(1, Math.round((current.origSeconds || 0) / 60));
-    recordCompletion(mins);
+    recordCompletion(mins*60);
   }
 }
 
 function startTimer(){
-  if(!current) return;
-  if(current.running) return;
+  if(!current || current.running) return;
   current.running = true;
   if(!current.origSeconds) current.origSeconds = current.remainingSeconds;
   timerInterval = setInterval(tick,1000);
@@ -209,154 +274,90 @@ function stopTimer(){
   renderCurrent();
 }
 
-function recordCompletion(minutes){
+function adjustTime(deltaSeconds){
   if(!current) return;
-  const task = state.tasks.find(t=>t.id===current.taskId);
-  const step = task?.steps.find(s=>s.id===current.stepId);
-  if(step) step.done = true;
-  state.history.push({ts: now().toISOString(), minutes: minutes, taskId: current.taskId, stepId: current.stepId});
-  saveState();
+  current.remainingSeconds = Math.max(0, current.remainingSeconds + deltaSeconds);
+  current.origSeconds = Math.max(current.origSeconds || 0, current.remainingSeconds);
+  renderCurrent();
+  toast(deltaSeconds > 0 ? "+5 minutes ajoutées" : "5 minutes retirées");
+}
+
+async function recordCompletion(durationSeconds){
+  if(!current) return;
+  const { error } = await sb.from("user_step_completions").insert({
+    user_id: currentUser.id,
+    step_id: current.stepId,
+    duration_seconds: durationSeconds
+  });
+  if(error){
+    toast("Erreur en sauvegardant : " + error.message, "error");
+    console.error(error);
+    return;
+  }
+  completedStepIds.push(current.stepId);
   current = null;
   renderAll();
 }
 
-/* Draw / add */
-function drawStep(minutes){
-  const undone = [];
-  state.tasks.forEach(task=>{
-    task.steps.forEach(step=>{
-      if(!step.done) undone.push({taskId:task.id, stepId:step.id, text:step.text});
-    });
-  });
-  if(undone.length===0){
-    alert("Aucune étape non terminée. Ajoute des étapes !");
+/* ============ Piger une étape ============ */
+function drawStep(availableMinutes){
+  const taskId = els.taskSelect.value;
+  if(!taskId){
+    toast("Choisis d'abord une tâche.", "error");
     return;
   }
-  const pick = undone[Math.floor(Math.random()*undone.length)];
-  current = {taskId: pick.taskId, stepId: pick.stepId, remainingSeconds: minutes*60, running:false, origSeconds: minutes*60};
-  renderCurrent();
-}
 
-function addTaskFromUI(){
-  const title = els.addTitle.value.trim();
-  if(!title || pendingSteps.length === 0){
-    alert("Titre et au moins une étape sont requis.");
+  const eligible = catalogSteps.filter(s =>
+    s.task_id === taskId &&
+    !completedStepIds.includes(s.id) &&
+    (s.duration_seconds || 300) <= availableMinutes*60
+  );
+  if(eligible.length===0){
+    toast("Aucune étape restante de cette tâche ne rentre dans ce temps.", "error");
     return;
   }
-  const steps = pendingSteps.map(s=>({id:id(), text:s, done:false}));
-  const t = {id:id(), title, steps};
-  state.tasks.push(t);
-  saveState();
-  els.addTitle.value = "";
-  pendingSteps = [];
-  renderStepsPreview();
-  renderAll();
-}
-
-/* Export / Import functions */
-function exportData(){
-  const json = JSON.stringify(state, null, 2);
-  const blob = new Blob([json], {type: "application/json"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `faiskifo-backup-${new Date().toISOString().slice(0,10)}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-function handleImportFile(file){
-  const reader = new FileReader();
-  reader.onload = () => {
-    try{
-      const imported = JSON.parse(reader.result);
-      if(!imported || typeof imported !== "object" || !Array.isArray(imported.tasks)) {
-        alert("Fichier JSON invalide.");
-        return;
-      }
-      if(confirm("Importer ce fichier remplacera les données actuelles. Continuer ?")) {
-        state = imported;
-        saveState();
-        renderAll();
-        alert("Importation terminée.");
-      }
-    } catch(e){
-      alert("Erreur en lisant le fichier : " + e.message);
-    }
+  const pick = eligible[Math.floor(Math.random()*eligible.length)];
+  current = {
+    taskId: pick.task_id,
+    stepId: pick.id,
+    remainingSeconds: pick.duration_seconds || availableMinutes*60,
+    running:false,
+    origSeconds: pick.duration_seconds || availableMinutes*60
   };
-  reader.readAsText(file);
+  renderCurrent();
+  els.currentCard.scrollIntoView({behavior:"smooth", block:"center"});
 }
 
-/* Event bindings */
-els.addStepBtn.onclick = addStepFromUI;
-els.stepInput.addEventListener("keydown", (e) => {
-  if(e.key === "Enter"){
-    e.preventDefault();
-    addStepFromUI();
-  }
+/* ============ Event bindings ============ */
+els.authSendBtn.onclick = sendMagicLink;
+els.authEmail.addEventListener("keydown", (e) => { if(e.key === "Enter"){ e.preventDefault(); sendMagicLink(); } });
+els.authLogoutBtn.onclick = logout;
+els.categorySelect.addEventListener("change", renderTaskOptions);
+
+els.drawBtn.onclick = ()=> drawStep(parseInt(els.timerMinutes.value,10) || 10);
+els.drawShortBtn.onclick = ()=> { els.timerMinutes.value = 5; drawStep(5); };
+els.timerMinutes.addEventListener("keydown", (e) => {
+  if(e.key === "Enter"){ e.preventDefault(); drawStep(parseInt(els.timerMinutes.value,10) || 10); }
 });
 
-els.addBtn.onclick = addTaskFromUI;
-els.drawBtn.onclick = ()=> drawStep(parseInt(els.timerMinutes.value||10,10));
-els.drawShortBtn.onclick = ()=> { els.timerMinutes.value = 5; drawStep(5); };
+els.minusTimeBtn.onclick = ()=> adjustTime(-5*60);
+els.plusTimeBtn.onclick = ()=> adjustTime(5*60);
 els.startBtn.onclick = startTimer;
-els.stopBtn.onclick = ()=> { stopTimer(); };
+els.stopBtn.onclick = ()=> stopTimer();
 els.doneBtn.onclick = ()=> {
-  if(!current){
-    alert("Aucune étape en cours — enregistrement impossible.");
-    return;
-  }
-  const auto = Math.max(1, Math.round(((current.origSeconds || 0) - (current.remainingSeconds || 0)) / 60));
-  const input = prompt("Minutes passées pour cette étape :", String(auto));
-  if(input === null) return;
-  const mins = Math.max(1, parseInt(input, 10) || auto);
-  recordCompletion(mins);
+  if(!current){ toast("Aucune étape en cours.", "error"); return; }
+  const secs = Math.max(60, (current.origSeconds || 0) - (current.remainingSeconds || 0)) || current.origSeconds;
+  toast(`Étape terminée · ${Math.round(secs/60)} min 🎉`, "success");
+  recordCompletion(secs);
 };
 
-/* Export / Import bindings */
-els.exportBtn.onclick = exportData;
-els.importBtn.onclick = ()=> els.importFile.click();
-els.importFile.onchange = (e) => {
-  const f = e.target.files && e.target.files[0];
-  if(f) handleImportFile(f);
-};
+/* ============ Démarrage : vérifie s'il y a déjà une session ============ */
+sb.auth.onAuthStateChange((_event, session) => {
+  if(session?.user){ showLoggedIn(session.user); }
+  else { showLoggedOut(); }
+});
 
-/* Reset demo */
-function resetDemo(){
-  if(!confirm("Réinitialiser les données de démonstration ? Cela supprimera vos tâches actuelles.")) return;
-  state = { tasks: [], history: [] };
-  state.tasks.push({
-    id:id(),
-    title:"Exemple : Nettoyer la cuisine",
-    steps:[
-      {id:id(), text:"Ranger les ustensiles", done:false},
-      {id:id(), text:"Laver la vaisselle (5 min)", done:false},
-      {id:id(), text:"Essuyer les comptoirs", done:false}
-    ]
-  });
-  saveState();
-  renderAll();
-}
-els.resetDemoBtn.onclick = resetDemo;
-
-/* Init & demo */
-function renderAll(){ saveState(); renderTasks(); renderDashboard(); renderCurrent(); }
-loadState();
-renderStepsPreview();
-renderAll();
-
-if(state.tasks.length===0){
-  state.tasks.push({
-    id:id(),
-    title:"Exemple : Nettoyer la cuisine",
-    steps:[
-      {id:id(), text:"Ranger les ustensiles", done:false},
-      {id:id(), text:"Laver la vaisselle (5 min)", done:false},
-      {id:id(), text:"Essuyer les comptoirs", done:false}
-    ]
-  });
-  saveState();
-  renderAll();
-}
+sb.auth.getSession().then(({ data }) => {
+  if(data?.session?.user){ showLoggedIn(data.session.user); }
+  else { showLoggedOut(); }
+});
