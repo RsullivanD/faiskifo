@@ -9,39 +9,14 @@
 </head>
 <body>
   <main id="app">
-    <section id="auth" aria-labelledby="auth-heading" class="card">
+    <section id="auth" class="card">
       <h2 id="auth-heading">Se connecter</h2>
 
       <div id="auth-logged-out">
-        <div class="auth-method-toggle" role="group" aria-label="Méthode de connexion">
-          <button id="method-password-btn" class="auth-method-btn auth-method-active" aria-pressed="true" type="button">
-            🔐 Compte
-          </button>
-          <button id="method-otp-btn" class="auth-method-btn" aria-pressed="false" type="button">
-            📧 Code par courriel
-          </button>
-        </div>
-
-        <div id="auth-form-password">
-          <p class="field-hint">Crée ton compte ou connecte-toi avec ton courriel et ton mot de passe.</p>
-          <input id="auth-email" type="email" placeholder="ton@courriel.com" autocomplete="email" />
-          <input id="auth-password" type="password" placeholder="Mot de passe" autocomplete="current-password" />
-          <input id="auth-password-confirm" type="password" placeholder="Confirmer le mot de passe" autocomplete="new-password" />
-
-          <div class="row">
-            <button id="auth-signup-btn" class="btn-primary" type="button">Créer un compte</button>
-            <button id="auth-login-btn" class="btn-secondary" type="button">Se connecter</button>
-          </div>
-
-          <p id="auth-password-status" class="auth-status hidden"></p>
-        </div>
-
-        <div id="auth-form-otp" class="hidden">
-          <p class="field-hint">Reçois un code à usage unique ou un lien magique par courriel.</p>
-          <input id="auth-email-otp" type="email" placeholder="ton@courriel.com" autocomplete="email" />
-          <button id="auth-send-btn" class="btn-primary btn-full" type="button">Envoyer le code</button>
-          <p id="auth-otp-status" class="auth-status hidden"></p>
-        </div>
+        <p class="field-hint">Entre ton courriel pour recevoir un lien magique.</p>
+        <input id="auth-email-otp" type="email" placeholder="ton@courriel.com" autocomplete="email" />
+        <button id="auth-send-btn" class="btn-primary btn-full" type="button">Envoyer le lien magique</button>
+        <p id="auth-otp-status" class="auth-status hidden"></p>
       </div>
 
       <div id="auth-logged-in" class="hidden">
@@ -51,62 +26,61 @@
     </section>
 
     <section id="app-content" class="hidden">
-      <section class="card">
-        <h2>Catalogue</h2>
+      <div class="app-tabs">
+        <button id="tab-focus-btn" class="tab-btn tab-active" type="button">Session</button>
+        <button id="tab-history-btn" class="tab-btn" type="button">Historique</button>
+      </div>
 
-        <div class="row">
-          <select id="category-select">
-            <option value="">Toutes les catégories</option>
-          </select>
+      <section id="focus-view" class="card">
+        <h2>Session</h2>
 
-          <select id="task-select">
-            <option value="">Choisis une tâche</option>
-          </select>
+        <div id="selector-view">
+          <div class="stack">
+            <label for="category-select">Catégorie</label>
+            <select id="category-select">
+              <option value="">Choisis une catégorie</option>
+            </select>
+          </div>
+
+          <div class="stack">
+            <label for="task-select">Tâche</label>
+            <select id="task-select" disabled>
+              <option value="">Choisis une tâche</option>
+            </select>
+          </div>
+
+          <div class="stack">
+            <label for="step-select">Étape</label>
+            <select id="step-select" disabled>
+              <option value="">Choisis une étape</option>
+            </select>
+          </div>
+
+          <div class="stack">
+            <label for="timer-minutes">Temps accordé (minutes)</label>
+            <input id="timer-minutes" type="number" min="1" value="10" />
+          </div>
+
+          <div class="row">
+            <button id="start-session-btn" class="btn-primary" type="button">Démarrer</button>
+          </div>
         </div>
 
-        <div class="row">
-          <input id="timer-minutes" type="number" min="1" value="10" />
-          <button id="draw-step-btn" class="btn-primary" type="button">Piger une étape</button>
-          <button id="random-short-btn" class="btn-secondary" type="button">Rapide 5 min</button>
-        </div>
-
-        <div id="tasks-list"></div>
+        <section id="current-step" class="card hidden current-card">
+          <h3>Étape en cours</h3>
+          <p id="current-step-text"></p>
+          <div id="timer">00:00</div>
+          <div class="row">
+            <button id="pause-timer-btn" class="btn-secondary" type="button">Pause</button>
+            <button id="resume-timer-btn" class="btn-secondary" type="button">Reprendre</button>
+            <button id="mark-done-btn" class="btn-success" type="button">Terminé</button>
+          </div>
+        </section>
       </section>
 
-      <section id="current-step" class="card hidden">
-        <h2>Étape en cours</h2>
-        <p id="current-step-text"></p>
-        <div id="timer">00:00</div>
-
-        <div class="row">
-          <button id="minus-time-btn" class="btn-secondary" type="button">- 5 min</button>
-          <button id="plus-time-btn" class="btn-secondary" type="button">+ 5 min</button>
-          <button id="start-timer-btn" class="btn-primary" type="button">Démarrer</button>
-          <button id="stop-timer-btn" class="btn-secondary" type="button">Pause</button>
-          <button id="mark-done-btn" class="btn-success" type="button">Terminé</button>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Statistiques</h2>
-        <div class="stats-grid">
-          <div class="stat">
-            <div id="today-count">0</div>
-            <span>Étapes aujourd’hui</span>
-          </div>
-          <div class="stat">
-            <div id="today-mins">0</div>
-            <span>Minutes aujourd’hui</span>
-          </div>
-          <div class="stat">
-            <div id="week-count">0</div>
-            <span>Étapes cette semaine</span>
-          </div>
-          <div class="stat">
-            <div id="week-mins">0</div>
-            <span>Minutes cette semaine</span>
-          </div>
-        </div>
+      <section id="history-view" class="card hidden">
+        <h2>Historique</h2>
+        <div id="history-list"></div>
       </section>
     </section>
 
