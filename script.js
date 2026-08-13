@@ -259,12 +259,40 @@ async function showLoggedIn(user){
 
 /* ============ Data loading ============ */
 async function loadCatalogAndProgress(){
-  const [{ data: cats, error: catsErr }, { data: tasks, error: tasksErr }, { data: steps, error: stepsErr }, { data: done, error: doneErr }] = await Promise.all([
+  async function loadCatalogAndProgress(){
+  const [catsRes, tasksRes, stepsRes, doneRes] = await Promise.all([
     sb.from("categories").select("id, name, icon").order("name"),
     sb.from("tasks").select("id, name, category_id, age_range").order("name"),
     sb.from("task_steps").select("id, task_id, step_order, description, duration_seconds").order("step_order"),
     sb.from("user_step_completions").select("step_id, completed_at, duration_seconds").eq("user_id", currentUser.id)
   ]);
+
+  const catError = catsRes.error;
+  const tasksError = tasksRes.error;
+  const stepsError = stepsRes.error;
+  const doneError = doneRes.error;
+
+  if (catError || tasksError || stepsError) {
+    const err = catError || tasksError || stepsError;
+    console.error("Catalog load error:", { catError, tasksError, stepsError });
+    toast("Impossible de charger le catalogue : " + err.message, "error");
+    return;
+  }
+
+  if (doneError) {
+    console.warn("Completion load warning:", doneError);
+    completedStepIds = [];
+  } else {
+    completedStepIds = (doneRes.data || []).map(d => normalizeId(d.step_id));
+  }
+
+  catalogCategories = catsRes.data || [];
+  catalogTasks = tasksRes.data || [];
+  catalogSteps = stepsRes.data || [];
+
+  renderCategoryOptions();
+  renderAll();
+}
 
   if (catsErr || tasksErr || stepsErr || doneErr) {
     const err = catsErr || tasksErr || stepsErr || doneErr;
