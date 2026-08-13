@@ -13,7 +13,7 @@ let catalogSteps = [];
 let catalogCategories = [];
 let completedStepIds = [];
 
-let current = null; // {stepId, taskId, remainingSeconds, running, origSeconds}
+let current = null;
 let timerInterval = null;
 
 /* ============ UI refs ============ */
@@ -21,8 +21,8 @@ const els = {
   authLoggedOut: document.getElementById("auth-logged-out"),
   authLoggedIn: document.getElementById("auth-logged-in"),
 
-  authMethodPasswordBtn: document.getElementById("auth-method-password-btn"),
-  authMethodOtpBtn: document.getElementById("auth-method-otp-btn"),
+  methodPasswordBtn: document.getElementById("method-password-btn"),
+  methodOtpBtn: document.getElementById("method-otp-btn"),
 
   authFormPassword: document.getElementById("auth-form-password"),
   authFormOtp: document.getElementById("auth-form-otp"),
@@ -122,11 +122,8 @@ function switchAuthMethod(method) {
   const passwordMode = method === "password";
   els.authFormPassword.classList.toggle("hidden", !passwordMode);
   els.authFormOtp.classList.toggle("hidden", passwordMode);
-
-  if (els.authMethodPasswordBtn && els.authMethodOtpBtn) {
-    els.authMethodPasswordBtn.classList.toggle("auth-method-active", passwordMode);
-    els.authMethodOtpBtn.classList.toggle("auth-method-active", !passwordMode);
-  }
+  els.methodPasswordBtn.classList.toggle("auth-method-active", passwordMode);
+  els.methodOtpBtn.classList.toggle("auth-method-active", !passwordMode);
   clearAuthStatus(els.authPasswordStatus);
   clearAuthStatus(els.authOtpStatus);
 }
@@ -163,11 +160,7 @@ async function signupWithPassword() {
     return;
   }
 
-  setAuthStatus(
-    els.authPasswordStatus,
-    "Compte créé. Vérifie ta boîte courriel si la confirmation email est activée.",
-    "success"
-  );
+  setAuthStatus(els.authPasswordStatus, "Compte créé. Vérifie ta boîte courriel si la confirmation email est activée.", "success");
 }
 
 async function loginWithPassword() {
@@ -498,12 +491,8 @@ function drawStep(availableMinutes){
 }
 
 /* ============ Event bindings ============ */
-if (els.authMethodPasswordBtn) {
-  els.authMethodPasswordBtn.onclick = () => switchAuthMethod("password");
-}
-if (els.authMethodOtpBtn) {
-  els.authMethodOtpBtn.onclick = () => switchAuthMethod("otp");
-}
+if (els.methodPasswordBtn) els.methodPasswordBtn.onclick = () => switchAuthMethod("password");
+if (els.methodOtpBtn) els.methodOtpBtn.onclick = () => switchAuthMethod("otp");
 
 if (els.authSignupBtn) els.authSignupBtn.onclick = signupWithPassword;
 if (els.authLoginBtn) els.authLoginBtn.onclick = loginWithPassword;
@@ -517,7 +506,6 @@ if (els.authEmail) {
     }
   });
 }
-
 if (els.authPassword) {
   els.authPassword.addEventListener("keydown", (e) => {
     if(e.key === "Enter"){
@@ -526,7 +514,6 @@ if (els.authPassword) {
     }
   });
 }
-
 if (els.authEmailOtp) {
   els.authEmailOtp.addEventListener("keydown", (e) => {
     if(e.key === "Enter"){
