@@ -480,5 +480,103 @@ function drawStep(availableMinutes){
   }
 
   const eligible = catalogSteps.filter(s =>
-    normalize*
-
+    normalizeId(s.task_id) === taskId &&
+    !completedStepIds.includes(normalizeId(s.id)) &&
+    (s.duration_seconds || 300) <= availableMinutes * 60
+  );
+
+  if(eligible.length === 0){
+    toast("Aucune étape restante de cette tâche ne rentre dans ce temps.", "error");
+    return;
+  }
+
+  const pick = eligible[Math.floor(Math.random() * eligible.length)];
+  current = {
+    taskId: pick.task_id,
+    stepId: pick.id,
+    remainingSeconds: pick.duration_seconds || availableMinutes * 60,
+    running: false,
+    origSeconds: pick.duration_seconds || availableMinutes * 60
+  };
+
+  renderCurrent();
+  els.currentCard.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+/* ============ Event bindings ============ */
+if (els.methodPasswordBtn) els.methodPasswordBtn.onclick = () => switchAuthMethod("password");
+if (els.methodOtpBtn) els.methodOtpBtn.onclick = () => switchAuthMethod("otp");
+
+if (els.authSignupBtn) els.authSignupBtn.onclick = signupWithPassword;
+if (els.authLoginBtn) els.authLoginBtn.onclick = loginWithPassword;
+if (els.authSendBtn) els.authSendBtn.onclick = sendMagicLink;
+
+if (els.authEmail) {
+  els.authEmail.addEventListener("keydown", (e) => {
+    if(e.key === "Enter"){
+      e.preventDefault();
+      loginWithPassword();
+    }
+  });
+}
+if (els.authPassword) {
+  els.authPassword.addEventListener("keydown", (e) => {
+    if(e.key === "Enter"){
+      e.preventDefault();
+      loginWithPassword();
+    }
+  });
+}
+if (els.authEmailOtp) {
+  els.authEmailOtp.addEventListener("keydown", (e) => {
+    if(e.key === "Enter"){
+      e.preventDefault();
+      sendMagicLink();
+    }
+  });
+}
+
+if (els.authLogoutBtn) els.authLogoutBtn.onclick = logout;
+if (els.categorySelect) els.categorySelect.addEventListener("change", renderTaskOptions);
+
+if (els.drawBtn) els.drawBtn.onclick = () => drawStep(parseInt(els.timerMinutes.value, 10) || 10);
+if (els.drawShortBtn) els.drawShortBtn.onclick = () => { els.timerMinutes.value = 5; drawStep(5); };
+if (els.timerMinutes) {
+  els.timerMinutes.addEventListener("keydown", (e) => {
+    if(e.key === "Enter"){
+      e.preventDefault();
+      drawStep(parseInt(els.timerMinutes.value, 10) || 10);
+    }
+  });
+}
+
+if (els.minusTimeBtn) els.minusTimeBtn.onclick = () => adjustTime(-5 * 60);
+if (els.plusTimeBtn) els.plusTimeBtn.onclick = () => adjustTime(5 * 60);
+if (els.startBtn) els.startBtn.onclick = startTimer;
+if (els.stopBtn) els.stopBtn.onclick = () => stopTimer();
+if (els.doneBtn) els.doneBtn.onclick = () => {
+  if(!current){
+    toast("Aucune étape en cours.", "error");
+    return;
+  }
+  const secs = Math.max(60, (current.origSeconds || 0) - (current.remainingSeconds || 0)) || current.origSeconds;
+  toast(`Étape terminée · ${Math.round(secs / 60)} min 🎉`, "success");
+  recordCompletion(secs);
+};
+
+/* ============ Démarrage ============ */
+sb.auth.onAuthStateChange((_event, session) => {
+  if(session?.user){
+    showLoggedIn(session.user);
+  } else {
+    showLoggedOut();
+  }
+});
+
+sb.auth.getSession().then(({ data }) => {
+  if(data?.session?.user){
+    showLoggedIn(data.session.user);
+  } else {
+    showLoggedOut();
+  }
+});
