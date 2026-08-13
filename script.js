@@ -7,11 +7,11 @@ function now() { return new Date(); }
 function startOfDay(d){ const x=new Date(d); x.setHours(0,0,0,0); return x; }
 function startOfWeek(d){ const x=new Date(d); const day=x.getDay(); const diff = x.getDate() - day + (day===0? -6:1); x.setDate(diff); x.setHours(0,0,0,0); return x; }
 
-let currentUser = null;      // objet utilisateur Supabase, ou null si pas connecté
-let catalogTasks = [];       // tâches du catalogue (table "tasks")
-let catalogSteps = [];       // étapes du catalogue (table "task_steps")
-let catalogCategories = [];  // catégories (table "categories")
-let completedStepIds = [];   // ids des étapes déjà faites par cet utilisateur
+let currentUser = null;
+let catalogTasks = [];
+let catalogSteps = [];
+let catalogCategories = [];
+let completedStepIds = [];
 
 let current = null; // {stepId, taskId, remainingSeconds, running, origSeconds}
 let timerInterval = null;
@@ -20,8 +20,26 @@ let timerInterval = null;
 const els = {
   authLoggedOut: document.getElementById("auth-logged-out"),
   authLoggedIn: document.getElementById("auth-logged-in"),
+
+  authMethodPasswordBtn: document.getElementById("auth-method-password-btn"),
+  authMethodOtpBtn: document.getElementById("auth-method-otp-btn"),
+
+  authFormPassword: document.getElementById("auth-form-password"),
+  authFormOtp: document.getElementById("auth-form-otp"),
+
   authEmail: document.getElementById("auth-email"),
+  authPassword: document.getElementById("auth-password"),
+  authPasswordConfirm: document.getElementById("auth-password-confirm"),
+
+  authSignupBtn: document.getElementById("auth-signup-btn"),
+  authLoginBtn: document.getElementById("auth-login-btn"),
+
+  authEmailOtp: document.getElementById("auth-email-otp"),
   authSendBtn: document.getElementById("auth-send-btn"),
+
+  authPasswordStatus: document.getElementById("auth-password-status"),
+  authOtpStatus: document.getElementById("auth-otp-status"),
+
   authUserEmail: document.getElementById("auth-user-email"),
   authLogoutBtn: document.getElementById("auth-logout-btn"),
   appContent: document.getElementById("app-content"),
@@ -52,6 +70,23 @@ const els = {
   confirmModalCancel: document.getElementById("confirm-modal-cancel"),
 };
 
+function normalizeId(v) {
+  return v === null || v === undefined ? "" : String(v);
+}
+
+function setAuthStatus(el, message, type = "info") {
+  if (!el) return;
+  el.textContent = message;
+  el.className = "auth-status" + (type === "error" ? " auth-status-error" : type === "success" ? " auth-status-success" : "");
+  el.classList.remove("hidden");
+}
+
+function clearAuthStatus(el) {
+  if (!el) return;
+  el.classList.add("hidden");
+  el.textContent = "";
+}
+
 /* ============ Toasts ============ */
 function toast(message, type = "info"){
   const t = document.createElement("div");
@@ -80,23 +115,130 @@ function askConfirm(message){
 }
 
 /* ============ Authentification ============ */
-async function sendMagicLink(){
+let otpCooldownTimer = null;
+let otpCooldownRemaining = 0;
+
+function switchAuthMethod(method) {
+  const passwordMode = method === "password";
+  els.authFormPassword.classList.toggle("hidden", !passwordMode);
+  els.authFormOtp.classList.toggle("hidden", passwordMode);
+
+  if (els.authMethodPasswordBtn && els.authMethodOtpBtn) {
+    els.authMethodPasswordBtn.classList.toggle("auth-method-active", passwordMode);
+    els.authMethodOtpBtn.classList.toggle("auth-method-active", !passwordMode);
+  }
+  clearAuthStatus(els.authPasswordStatus);
+  clearAuthStatus(els.authOtpStatus);
+}
+
+async function signupWithPassword() {
   const email = els.authEmail.value.trim();
-  if(!email){
-    toast("Entre ton courriel d'abord.", "error");
+  const password = els.authPassword.value;
+  const confirm = els.authPasswordConfirm.value;
+
+  if (!email || !password || !confirm) {
+    setAuthStatus(els.authPasswordStatus, "Entre ton courriel, ton mot de passe et la confirmation.", "error");
     return;
   }
+  if (password !== confirm) {
+    setAuthStatus(els.authPasswordStatus, "Les deux mots de passe ne sont pas identiques.", "error");
+    return;
+  }
+
+  clearAuthStatus(els.authPasswordStatus);
+  els.authSignupBtn.disabled = true;
+  els.authSignupBtn.textContent = "Création…";
+
+  const { error } = await sb.auth.signUp({
+    email,
+    password,
+    options: { emailRedirectTo: window.location.href }
+  });
+
+  els.authSignupBtn.disabled = false;
+  els.authSignupBtn.textContent = "Créer un compte";
+
+  if (error) {
+    setAuthStatus(els.authPasswordStatus, "Erreur : " + error.message, "error");
+    return;
+  }
+
+  setAuthStatus(
+    els.authPasswordStatus,
+    "Compte créé. Vérifie ta boîte courriel si la confirmation email est activée.",
+    "success"
+  );
+}
+
+async function loginWithPassword() {
+  const email = els.authEmail.value.trim();
+  const password = els.authPassword.value;
+
+  if (!email || !password) {
+    setAuthStatus(els.authPasswordStatus, "Entre ton courriel et ton mot de passe.", "error");
+    return;
+  }
+
+  clearAuthStatus(els.authPasswordStatus);
+  els.authLoginBtn.disabled = true;
+  els.authLoginBtn.textContent = "Connexion…";
+
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+
+  els.authLoginBtn.disabled = false;
+  els.authLoginBtn.textContent = "Se connecter";
+
+  if (error) {
+    setAuthStatus(els.authPasswordStatus, "Erreur : " + error.message, "error");
+    return;
+  }
+
+  clearAuthStatus(els.authPasswordStatus);
+}
+
+async function sendMagicLink() {
+  const email = els.authEmailOtp.value.trim();
+
+  if (!email) {
+    setAuthStatus(els.authOtpStatus, "Entre ton courriel d'abord.", "error");
+    return;
+  }
+
+  if (otpCooldownRemaining > 0) {
+    setAuthStatus(els.authOtpStatus, `Patiente ${otpCooldownRemaining}s avant de renvoyer un code.`, "error");
+    return;
+  }
+
   els.authSendBtn.disabled = true;
+  clearAuthStatus(els.authOtpStatus);
+
   const { error } = await sb.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: window.location.href }
   });
+
   els.authSendBtn.disabled = false;
-  if(error){
-    toast("Erreur : " + error.message, "error");
+
+  if (error) {
+    setAuthStatus(els.authOtpStatus, "Erreur : " + error.message, "error");
     return;
   }
-  toast("Lien envoyé ! Vérifie ta boîte courriel 📬", "success");
+
+  setAuthStatus(els.authOtpStatus, "Code envoyé ! Vérifie ta boîte courriel 📬", "success");
+
+  otpCooldownRemaining = 60;
+  els.authSendBtn.textContent = "Renvoyer (60s)";
+  otpCooldownTimer = setInterval(() => {
+    otpCooldownRemaining--;
+    if (otpCooldownRemaining <= 0) {
+      clearInterval(otpCooldownTimer);
+      otpCooldownTimer = null;
+      els.authSendBtn.disabled = false;
+      els.authSendBtn.textContent = "Envoyer le code";
+      return;
+    }
+    els.authSendBtn.textContent = `Renvoyer (${otpCooldownRemaining}s)`;
+  }, 1000);
 }
 
 async function logout(){
@@ -115,7 +257,7 @@ async function showLoggedIn(user){
   currentUser = user;
   els.authLoggedOut.classList.add("hidden");
   els.authLoggedIn.classList.remove("hidden");
-  els.authUserEmail.textContent = user.email;
+  els.authUserEmail.textContent = user.email || "";
   els.appContent.classList.remove("hidden");
   await loadCatalogAndProgress();
 }
@@ -123,72 +265,80 @@ async function showLoggedIn(user){
 /* ============ Charger le catalogue + la progression ============ */
 async function loadCatalogAndProgress(){
   const [{ data: cats, error: catsErr }, { data: tasks, error: tasksErr }, { data: steps, error: stepsErr }, { data: done, error: doneErr }] = await Promise.all([
-    sb.from("categories").select("id, name, icon"),
-    sb.from("tasks").select("id, name, category_id, age_range"),
+    sb.from("categories").select("id, name, icon").order("name"),
+    sb.from("tasks").select("id, name, category_id, age_range").order("name"),
     sb.from("task_steps").select("id, task_id, step_order, description, duration_seconds").order("step_order"),
-    sb.from("user_step_completions").select("step_id").eq("user_id", currentUser.id)
+    sb.from("user_step_completions").select("step_id, completed_at, duration_seconds").eq("user_id", currentUser.id)
   ]);
 
-  if(catsErr || tasksErr || stepsErr || doneErr){
-    toast("Impossible de charger le catalogue. Réessaie plus tard.", "error");
-    console.error(catsErr || tasksErr || stepsErr || doneErr);
+  if (catsErr || tasksErr || stepsErr || doneErr) {
+    const err = catsErr || tasksErr || stepsErr || doneErr;
+    toast("Impossible de charger le catalogue.", "error");
+    console.error(err);
     return;
   }
 
   catalogCategories = cats || [];
   catalogTasks = tasks || [];
   catalogSteps = steps || [];
-  completedStepIds = (done || []).map(d => d.step_id);
+  completedStepIds = (done || []).map(d => normalizeId(d.step_id));
 
   renderCategoryOptions();
   renderAll();
 }
 
 function renderCategoryOptions(){
-  const current = els.categorySelect.value;
+  const previous = els.categorySelect.value;
   els.categorySelect.innerHTML = '<option value="">Toutes les catégories</option>';
+
   catalogCategories.forEach(cat => {
     const opt = document.createElement("option");
-    opt.value = cat.id;
+    opt.value = normalizeId(cat.id);
     opt.textContent = (cat.icon ? cat.icon + " " : "") + cat.name;
     els.categorySelect.appendChild(opt);
   });
-  els.categorySelect.value = current;
+
+  els.categorySelect.value = previous;
   renderTaskOptions();
 }
 
 function renderTaskOptions(){
-  const categoryId = els.categorySelect.value;
-  const current = els.taskSelect.value;
+  const categoryId = normalizeId(els.categorySelect.value);
+  const previous = els.taskSelect.value;
+
   const filtered = categoryId
-    ? catalogTasks.filter(t => t.category_id === categoryId)
+    ? catalogTasks.filter(t => normalizeId(t.category_id) === categoryId)
     : catalogTasks;
 
   els.taskSelect.innerHTML = '<option value="">Choisis une tâche</option>';
+
   filtered.forEach(task => {
-    const steps = catalogSteps.filter(s => s.task_id === task.id);
-    const remaining = steps.filter(s => !completedStepIds.includes(s.id)).length;
+    const steps = catalogSteps.filter(s => normalizeId(s.task_id) === normalizeId(task.id));
+    const remaining = steps.filter(s => !completedStepIds.includes(normalizeId(s.id))).length;
+
     const opt = document.createElement("option");
-    opt.value = task.id;
+    opt.value = normalizeId(task.id);
     opt.textContent = task.name + (steps.length ? ` (${remaining}/${steps.length} restantes)` : "");
     els.taskSelect.appendChild(opt);
   });
-  // garde la tâche sélectionnée si elle existe encore dans la liste filtrée
-  els.taskSelect.value = filtered.some(t => t.id === current) ? current : "";
+
+  els.taskSelect.value = filtered.some(t => normalizeId(t.id) === previous) ? previous : "";
 }
 
 /* ============ Renderers ============ */
 function renderTasks(){
   els.tasksList.innerHTML = "";
+
   if(catalogTasks.length === 0){
     els.tasksList.innerHTML = "<p>Aucune tâche disponible pour l'instant.</p>";
     return;
   }
-  catalogTasks.forEach(task=>{
-    const steps = catalogSteps.filter(s => s.task_id === task.id);
+
+  catalogTasks.forEach(task => {
+    const steps = catalogSteps.filter(s => normalizeId(s.task_id) === normalizeId(task.id));
     const total = steps.length;
-    const doneCount = steps.filter(s => completedStepIds.includes(s.id)).length;
-    const pct = total > 0 ? Math.round((doneCount/total)*100) : 0;
+    const doneCount = steps.filter(s => completedStepIds.includes(normalizeId(s.id))).length;
+    const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
 
     const div = document.createElement("div");
     div.className = "task card";
@@ -196,7 +346,7 @@ function renderTasks(){
       <h3>${task.name}</h3>
       <div class="task-progress-wrap">
         <div class="task-progress-track"><div class="task-progress-fill" style="width:${pct}%"></div></div>
-        <span class="task-progress-label">${doneCount} / ${total} étapes${pct===100 && total>0 ? " · terminée 🎉" : ""}</span>
+        <span class="task-progress-label">${doneCount} / ${total} étapes${pct === 100 && total > 0 ? " · terminée 🎉" : ""}</span>
       </div>
     `;
     els.tasksList.appendChild(div);
@@ -209,16 +359,21 @@ async function renderDashboard(){
     .select("completed_at, duration_seconds")
     .eq("user_id", currentUser.id);
 
-  if(error){ console.error(error); return; }
+  if(error){
+    console.error(error);
+    return;
+  }
 
-  const today = startOfDay(now()), week = startOfWeek(now());
-  const todayItems = (history||[]).filter(i => new Date(i.completed_at) >= today);
-  const weekItems = (history||[]).filter(i => new Date(i.completed_at) >= week);
+  const today = startOfDay(now());
+  const week = startOfWeek(now());
+  const items = history || [];
+  const todayItems = items.filter(i => new Date(i.completed_at) >= today);
+  const weekItems = items.filter(i => new Date(i.completed_at) >= week);
 
   els.todayCount.textContent = todayItems.length;
-  els.todayMins.textContent = Math.round(todayItems.reduce((s,i)=>s+(i.duration_seconds||0),0)/60);
+  els.todayMins.textContent = Math.round(todayItems.reduce((s, i) => s + (i.duration_seconds || 0), 0) / 60);
   els.weekCount.textContent = weekItems.length;
-  els.weekMins.textContent = Math.round(weekItems.reduce((s,i)=>s+(i.duration_seconds||0),0)/60);
+  els.weekMins.textContent = Math.round(weekItems.reduce((s, i) => s + (i.duration_seconds || 0), 0) / 60);
 }
 
 function renderCurrent(){
@@ -226,13 +381,16 @@ function renderCurrent(){
     els.currentCard.classList.add("hidden");
     return;
   }
+
   els.currentCard.classList.remove("hidden");
-  const step = catalogSteps.find(s => s.id === current.stepId);
-  const task = catalogTasks.find(t => t.id === current.taskId);
+  const step = catalogSteps.find(s => normalizeId(s.id) === normalizeId(current.stepId));
+  const task = catalogTasks.find(t => normalizeId(t.id) === normalizeId(current.taskId));
   els.currentText.textContent = (task?.name || "") + " — " + (step?.description || "");
-  const mm = Math.floor(current.remainingSeconds/60);
-  const ss = current.remainingSeconds%60;
-  els.timerDisplay.textContent = `${String(mm).padStart(2,"0")}:${String(ss).padStart(2,"0")}`;
+
+  const mm = Math.floor(current.remainingSeconds / 60);
+  const ss = current.remainingSeconds % 60;
+  els.timerDisplay.textContent = `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+
   els.startBtn.disabled = current.running;
   els.stopBtn.disabled = !current.running;
   els.minusTimeBtn.disabled = current.remainingSeconds <= 60;
@@ -248,14 +406,15 @@ function renderAll(){
 /* ============ Timer ============ */
 function tick(){
   if(!current || !current.running) return;
-  if(current.remainingSeconds>0){
+
+  if(current.remainingSeconds > 0){
     current.remainingSeconds--;
     renderCurrent();
   } else {
     stopTimer();
     toast("Temps écoulé ! ⏰", "success");
     const mins = Math.max(1, Math.round((current.origSeconds || 0) / 60));
-    recordCompletion(mins*60);
+    recordCompletion(mins * 60);
   }
 }
 
@@ -263,14 +422,17 @@ function startTimer(){
   if(!current || current.running) return;
   current.running = true;
   if(!current.origSeconds) current.origSeconds = current.remainingSeconds;
-  timerInterval = setInterval(tick,1000);
+  timerInterval = setInterval(tick, 1000);
   renderCurrent();
 }
 
 function stopTimer(){
   if(!current) return;
   current.running = false;
-  if(timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+  if(timerInterval) {
+    clearInterval(timerInterval);
+    timerInterval = null;
+  }
   renderCurrent();
 }
 
@@ -284,80 +446,137 @@ function adjustTime(deltaSeconds){
 
 async function recordCompletion(durationSeconds){
   if(!current) return;
+
   const { error } = await sb.from("user_step_completions").insert({
     user_id: currentUser.id,
     step_id: current.stepId,
     duration_seconds: durationSeconds
   });
+
   if(error){
     toast("Erreur en sauvegardant : " + error.message, "error");
     console.error(error);
     return;
   }
-  completedStepIds.push(current.stepId);
+
+  completedStepIds.push(normalizeId(current.stepId));
   current = null;
   renderAll();
 }
 
 /* ============ Piger une étape ============ */
 function drawStep(availableMinutes){
-  const taskId = els.taskSelect.value;
+  const taskId = normalizeId(els.taskSelect.value);
+
   if(!taskId){
     toast("Choisis d'abord une tâche.", "error");
     return;
   }
 
   const eligible = catalogSteps.filter(s =>
-    s.task_id === taskId &&
-    !completedStepIds.includes(s.id) &&
-    (s.duration_seconds || 300) <= availableMinutes*60
+    normalizeId(s.task_id) === taskId &&
+    !completedStepIds.includes(normalizeId(s.id)) &&
+    (s.duration_seconds || 300) <= availableMinutes * 60
   );
-  if(eligible.length===0){
+
+  if(eligible.length === 0){
     toast("Aucune étape restante de cette tâche ne rentre dans ce temps.", "error");
     return;
   }
-  const pick = eligible[Math.floor(Math.random()*eligible.length)];
+
+  const pick = eligible[Math.floor(Math.random() * eligible.length)];
   current = {
     taskId: pick.task_id,
     stepId: pick.id,
-    remainingSeconds: pick.duration_seconds || availableMinutes*60,
-    running:false,
-    origSeconds: pick.duration_seconds || availableMinutes*60
+    remainingSeconds: pick.duration_seconds || availableMinutes * 60,
+    running: false,
+    origSeconds: pick.duration_seconds || availableMinutes * 60
   };
+
   renderCurrent();
-  els.currentCard.scrollIntoView({behavior:"smooth", block:"center"});
+  els.currentCard.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 /* ============ Event bindings ============ */
-els.authSendBtn.onclick = sendMagicLink;
-els.authEmail.addEventListener("keydown", (e) => { if(e.key === "Enter"){ e.preventDefault(); sendMagicLink(); } });
-els.authLogoutBtn.onclick = logout;
-els.categorySelect.addEventListener("change", renderTaskOptions);
+if (els.authMethodPasswordBtn) {
+  els.authMethodPasswordBtn.onclick = () => switchAuthMethod("password");
+}
+if (els.authMethodOtpBtn) {
+  els.authMethodOtpBtn.onclick = () => switchAuthMethod("otp");
+}
 
-els.drawBtn.onclick = ()=> drawStep(parseInt(els.timerMinutes.value,10) || 10);
-els.drawShortBtn.onclick = ()=> { els.timerMinutes.value = 5; drawStep(5); };
-els.timerMinutes.addEventListener("keydown", (e) => {
-  if(e.key === "Enter"){ e.preventDefault(); drawStep(parseInt(els.timerMinutes.value,10) || 10); }
-});
+if (els.authSignupBtn) els.authSignupBtn.onclick = signupWithPassword;
+if (els.authLoginBtn) els.authLoginBtn.onclick = loginWithPassword;
+if (els.authSendBtn) els.authSendBtn.onclick = sendMagicLink;
 
-els.minusTimeBtn.onclick = ()=> adjustTime(-5*60);
-els.plusTimeBtn.onclick = ()=> adjustTime(5*60);
-els.startBtn.onclick = startTimer;
-els.stopBtn.onclick = ()=> stopTimer();
-els.doneBtn.onclick = ()=> {
-  if(!current){ toast("Aucune étape en cours.", "error"); return; }
+if (els.authEmail) {
+  els.authEmail.addEventListener("keydown", (e) => {
+    if(e.key === "Enter"){
+      e.preventDefault();
+      loginWithPassword();
+    }
+  });
+}
+
+if (els.authPassword) {
+  els.authPassword.addEventListener("keydown", (e) => {
+    if(e.key === "Enter"){
+      e.preventDefault();
+      loginWithPassword();
+    }
+  });
+}
+
+if (els.authEmailOtp) {
+  els.authEmailOtp.addEventListener("keydown", (e) => {
+    if(e.key === "Enter"){
+      e.preventDefault();
+      sendMagicLink();
+    }
+  });
+}
+
+if (els.authLogoutBtn) els.authLogoutBtn.onclick = logout;
+if (els.categorySelect) els.categorySelect.addEventListener("change", renderTaskOptions);
+
+if (els.drawBtn) els.drawBtn.onclick = () => drawStep(parseInt(els.timerMinutes.value, 10) || 10);
+if (els.drawShortBtn) els.drawShortBtn.onclick = () => { els.timerMinutes.value = 5; drawStep(5); };
+if (els.timerMinutes) {
+  els.timerMinutes.addEventListener("keydown", (e) => {
+    if(e.key === "Enter"){
+      e.preventDefault();
+      drawStep(parseInt(els.timerMinutes.value, 10) || 10);
+    }
+  });
+}
+
+if (els.minusTimeBtn) els.minusTimeBtn.onclick = () => adjustTime(-5 * 60);
+if (els.plusTimeBtn) els.plusTimeBtn.onclick = () => adjustTime(5 * 60);
+if (els.startBtn) els.startBtn.onclick = startTimer;
+if (els.stopBtn) els.stopBtn.onclick = () => stopTimer();
+if (els.doneBtn) els.doneBtn.onclick = () => {
+  if(!current){
+    toast("Aucune étape en cours.", "error");
+    return;
+  }
   const secs = Math.max(60, (current.origSeconds || 0) - (current.remainingSeconds || 0)) || current.origSeconds;
-  toast(`Étape terminée · ${Math.round(secs/60)} min 🎉`, "success");
+  toast(`Étape terminée · ${Math.round(secs / 60)} min 🎉`, "success");
   recordCompletion(secs);
 };
 
 /* ============ Démarrage : vérifie s'il y a déjà une session ============ */
 sb.auth.onAuthStateChange((_event, session) => {
-  if(session?.user){ showLoggedIn(session.user); }
-  else { showLoggedOut(); }
+  if(session?.user){
+    showLoggedIn(session.user);
+  } else {
+    showLoggedOut();
+  }
 });
 
 sb.auth.getSession().then(({ data }) => {
-  if(data?.session?.user){ showLoggedIn(data.session.user); }
-  else { showLoggedOut(); }
+  if(data?.session?.user){
+    showLoggedIn(data.session.user);
+  } else {
+    showLoggedOut();
+  }
 });
