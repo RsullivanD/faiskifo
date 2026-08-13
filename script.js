@@ -96,11 +96,12 @@ function toast(message, type = "info"){
   setTimeout(() => t.remove(), 2900);
 }
 
-/* ============ Confirmation intégrée ============ */
+/* ============ Confirmation ============ */
 function askConfirm(message){
   return new Promise((resolve) => {
     els.confirmModalTitle.textContent = message;
     els.confirmModal.classList.remove("hidden");
+
     function cleanup(result){
       els.confirmModal.classList.add("hidden");
       els.confirmModalOk.removeEventListener("click", onOk);
@@ -109,12 +110,13 @@ function askConfirm(message){
     }
     function onOk(){ cleanup(true); }
     function onCancel(){ cleanup(false); }
+
     els.confirmModalOk.addEventListener("click", onOk);
     els.confirmModalCancel.addEventListener("click", onCancel);
   });
 }
 
-/* ============ Authentification ============ */
+/* ============ Auth ============ */
 let otpCooldownTimer = null;
 let otpCooldownRemaining = 0;
 
@@ -255,7 +257,7 @@ async function showLoggedIn(user){
   await loadCatalogAndProgress();
 }
 
-/* ============ Charger le catalogue + la progression ============ */
+/* ============ Data loading ============ */
 async function loadCatalogAndProgress(){
   const [{ data: cats, error: catsErr }, { data: tasks, error: tasksErr }, { data: steps, error: stepsErr }, { data: done, error: doneErr }] = await Promise.all([
     sb.from("categories").select("id, name, icon").order("name"),
@@ -551,7 +553,7 @@ if (els.doneBtn) els.doneBtn.onclick = () => {
   recordCompletion(secs);
 };
 
-/* ============ Démarrage : vérifie s'il y a déjà une session ============ */
+/* ============ Démarrage ============ */
 sb.auth.onAuthStateChange((_event, session) => {
   if(session?.user){
     showLoggedIn(session.user);
