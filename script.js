@@ -408,7 +408,6 @@ function renderAll(){
   renderDashboard();
   renderCurrent();
 }
-}
 
   if (catsErr || tasksErr || stepsErr || doneErr) {
     const err = catsErr || tasksErr || stepsErr || doneErr;
