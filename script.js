@@ -259,7 +259,6 @@ async function showLoggedIn(user){
 
 /* ============ Data loading ============ */
 async function loadCatalogAndProgress(){
-  async function loadCatalogAndProgress(){
   const [catsRes, tasksRes, stepsRes, doneRes] = await Promise.all([
     sb.from("categories").select("id, name, icon").order("name"),
     sb.from("tasks").select("id, name, category_id, age_range").order("name"),
@@ -292,6 +291,123 @@ async function loadCatalogAndProgress(){
 
   renderCategoryOptions();
   renderAll();
+}
+
+function renderCategoryOptions(){
+  const previous = els.categorySelect.value;
+  els.categorySelect.innerHTML = '<option value="">Toutes les catégories</option>';
+
+  catalogCategories.forEach(cat => {
+    const opt = document.createElement("option");
+    opt.value = normalizeId(cat.id);
+    opt.textContent = (cat.icon ? cat.icon + " " : "") + cat.name;
+    els.categorySelect.appendChild(opt);
+  });
+
+  els.categorySelect.value = previous;
+  renderTaskOptions();
+}
+
+function renderTaskOptions(){
+  const categoryId = normalizeId(els.categorySelect.value);
+  const previous = els.taskSelect.value;
+
+  const filtered = categoryId
+    ? catalogTasks.filter(t => normalizeId(t.category_id) === categoryId)
+    : catalogTasks;
+
+  els.taskSelect.innerHTML = '<option value="">Choisis une tâche</option>';
+
+  filtered.forEach(task => {
+    const steps = catalogSteps.filter(s => normalizeId(s.task_id) === normalizeId(task.id));
+    const remaining = steps.filter(s => !completedStepIds.includes(normalizeId(s.id))).length;
+
+    const opt = document.createElement("option");
+    opt.value = normalizeId(task.id);
+    opt.textContent = task.name + (steps.length ? ` (${remaining}/${steps.length} restantes)` : "");
+    els.taskSelect.appendChild(opt);
+  });
+
+  els.taskSelect.value = filtered.some(t => normalizeId(t.id) === previous) ? previous : "";
+}
+
+/* ============ Renderers ============ */
+function renderTasks(){
+  els.tasksList.innerHTML = "";
+
+  if(catalogTasks.length === 0){
+    els.tasksList.innerHTML = "<p>Aucune tâche disponible pour l'instant.</p>";
+    return;
+  }
+
+  catalogTasks.forEach(task => {
+    const steps = catalogSteps.filter(s => normalizeId(s.task_id) === normalizeId(task.id));
+    const total = steps.length;
+    const doneCount = steps.filter(s => completedStepIds.includes(normalizeId(s.id))).length;
+    const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+    const div = document.createElement("div");
+    div.className = "task card";
+    div.innerHTML = `
+      <h3>${task.name}</h3>
+      <div class="task-progress-wrap">
+        <div class="task-progress-track"><div class="task-progress-fill" style="width:${pct}%"></div></div>
+        <span class="task-progress-label">${doneCount} / ${total} étapes${pct === 100 && total > 0 ? " · terminée 🎉" : ""}</span>
+      </div>
+    `;
+    els.tasksList.appendChild(div);
+  });
+}
+
+async function renderDashboard(){
+  const { data: history, error } = await sb
+    .from("user_step_completions")
+    .select("completed_at, duration_seconds")
+    .eq("user_id", currentUser.id);
+
+  if(error){
+    console.error(error);
+    return;
+  }
+
+  const today = startOfDay(now());
+  const week = startOfWeek(now());
+  const items = history || [];
+  const todayItems = items.filter(i => new Date(i.completed_at) >= today);
+  const weekItems = items.filter(i => new Date(i.completed_at) >= week);
+
+  els.todayCount.textContent = todayItems.length;
+  els.todayMins.textContent = Math.round(todayItems.reduce((s, i) => s + (i.duration_seconds || 0), 0) / 60);
+  els.weekCount.textContent = weekItems.length;
+  els.weekMins.textContent = Math.round(weekItems.reduce((s, i) => s + (i.duration_seconds || 0), 0) / 60);
+}
+
+function renderCurrent(){
+  if(!current){
+    els.currentCard.classList.add("hidden");
+    return;
+  }
+
+  els.currentCard.classList.remove("hidden");
+  const step = catalogSteps.find(s => normalizeId(s.id) === normalizeId(current.stepId));
+  const task = catalogTasks.find(t => normalizeId(t.id) === normalizeId(current.taskId));
+  els.currentText.textContent = (task?.name || "") + " — " + (step?.description || "");
+
+  const mm = Math.floor(current.remainingSeconds / 60);
+  const ss = current.remainingSeconds % 60;
+  els.timerDisplay.textContent = `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+
+  els.startBtn.disabled = current.running;
+  els.stopBtn.disabled = !current.running;
+  els.minusTimeBtn.disabled = current.remainingSeconds <= 60;
+}
+
+function renderAll(){
+  renderTaskOptions();
+  renderTasks();
+  renderDashboard();
+  renderCurrent();
+}
 }
 
   if (catsErr || tasksErr || stepsErr || doneErr) {
