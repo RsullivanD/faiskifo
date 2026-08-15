@@ -1,14 +1,15 @@
 /* ============ Connexion à Supabase ============ */
-const SUPABASE_URL = "https://gnbjxvoxktxhxnkpfgtb.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_zwAIBLWPlRd4dMoCOY2UEw_d7dQfs5u";
+const SUPABASE_URL = "https://jzswpovhenarwogdxkgo.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_pECo8A3VPWAYauo0tGHqHA_NRhMSUqP";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let currentUser = null;
-let catalogTasks = [];
-let catalogSteps = [];
+
 let catalogCategories = [];
-let completedStepIds = [];
-let historyItems = [];
+let catalogSubcategories = [];
+let catalogTasks = [];
+let userTaskPreferences = [];
+let taskHistory = [];
 
 let current = null;
 let timerInterval = null;
@@ -20,14 +21,9 @@ function normalizeId(v) {
   return v === null || v === undefined ? "" : String(v);
 }
 
-function startOfDay(d) {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
 function toast(message, type = "info") {
   const container = document.getElementById("toast-container");
+  if (!container) return;
   const t = document.createElement("div");
   t.className = "toast" + (type === "success" ? " toast-success" : type === "error" ? " toast-error" : "");
   t.textContent = message;
@@ -46,6 +42,10 @@ function clearSelect(select, placeholder) {
   opt.value = "";
   opt.textContent = placeholder;
   select.appendChild(opt);
+}
+
+function formatDate(ts) {
+  return new Date(ts).toLocaleString("fr-CA");
 }
 
 function formatMinutes(seconds) {
@@ -83,11 +83,6 @@ const els = {
   markDoneBtn: document.getElementById("mark-done-btn"),
 
   historyList: document.getElementById("history-list"),
-
-  confirmModal: document.getElementById("confirm-modal"),
-  confirmModalTitle: document.getElementById("confirm-modal-title"),
-  confirmModalOk: document.getElementById("confirm-modal-ok"),
-  confirmModalCancel: document.getElementById("confirm-modal-cancel"),
 };
 
 /* ============ Auth ============ */
@@ -150,25 +145,30 @@ sb.auth.getSession().then(({ data }) => {
 
 /* ============ Data loading ============ */
 async function loadAllData() {
-  const [catsRes, tasksRes, stepsRes, doneRes, histRes] = await Promise.all([
-    sb.from("categories").select("id, name, icon").order("name"),
-    sb.from("tasks").select("id, name, category_id, age_range").order("name"),
-    sb.from("task_steps").select("id, task_id, step_order, description, duration_seconds").order("step_order"),
-    sb.from("user_step_completions").select("step_id").eq("user_id", currentUser.id),
-    sb.from("user_step_completions").select("completed_at, duration_seconds, step_id").eq("user_id", currentUser.id).order("completed_at", { ascending: false })
+  const [catsRes, subcatsRes, tasksRes, prefsRes, histRes] = await Promise.all([
+    sb.from("categories").select("id, name, icon, sort_order").order("sort_order").order("name"),
+    sb.from("subcategories").select("id, category_id, name, sort_order").order("sort_order").order("name"),
+    sb.from("tasks").select("id, category_id, subcategory_id, name, description, duration_minutes, sort_order").order("sort_order").order("name"),
+    sb.from("user_task_preferences")
+      .select("id, task_id, preferred_minutes, pinned, notes, updated_at")
+      .eq("user_id", currentUser.id),
+    sb.from("task_history")
+      .select("id, task_id, subcategory_id, completed_at, duration_minutes, note")
+      .eq("user_id", currentUser.id)
+      .order("completed_at", { ascending: false })
   ]);
 
-  if (catsRes.error || tasksRes.error || stepsRes.error) {
-    const err = catsRes.error || tasksRes.error || stepsRes.error;
-    toast("Impossible de charger le catalogue : " + err.message, "error");
+  if (catsRes.error || subcatsRes.error || tasksRes.error || prefsRes.error || histRes.error) {
+    const err = catsRes.error || subcatsRes.error || tasksRes.error || prefsRes.error || histRes.error;
+    toast("Impossible de charger les données : " + err.message, "error");
     return;
   }
 
   catalogCategories = catsRes.data || [];
+  catalogSubcategories = subcatsRes.data || [];
   catalogTasks = tasksRes.data || [];
-  catalogSteps = stepsRes.data || [];
-  completedStepIds = (doneRes.data || []).map(d => normalizeId(d.step_id));
-  historyItems = histRes.data || [];
+  userTaskPreferences = prefsRes.data || [];
+  taskHistory = histRes.data || [];
 
   renderCategoryOptions();
   renderHistory();
@@ -184,16 +184,18 @@ function renderCategoryOptions() {
     opt.textContent = (cat.icon ? cat.icon + " " : "") + cat.name;
     els.categorySelect.appendChild(opt);
   });
+
   clearSelect(els.taskSelect, "Choisis une tâche");
   els.taskSelect.disabled = true;
-  clearSelect(els.stepSelect, "Choisis une étape");
+
+  clearSelect(els.stepSelect, "Choisis une sous-catégorie");
   els.stepSelect.disabled = true;
 }
 
 function renderTaskOptions() {
   const catId = els.categorySelect.value;
   clearSelect(els.taskSelect, "Choisis une tâche");
-  clearSelect(els.stepSelect, "Choisis une étape");
+  clearSelect(els.stepSelect, "Choisis une sous-catégorie");
   els.stepSelect.disabled = true;
 
   if (!catId) {
@@ -213,40 +215,47 @@ function renderTaskOptions() {
 }
 
 function renderStepOptions() {
+  const catId = els.categorySelect.value;
   const taskId = els.taskSelect.value;
-  clearSelect(els.stepSelect, "Choisis une étape");
+  clearSelect(els.stepSelect, "Choisis une sous-catégorie");
 
-  if (!taskId) {
+  if (!catId || !taskId) {
     els.stepSelect.disabled = true;
     return;
   }
 
-  const steps = catalogSteps.filter(s => normalizeId(s.task_id) === normalizeId(taskId));
-  steps.forEach(step => {
+  const subcats = catalogSubcategories.filter(s => normalizeId(s.category_id) === normalizeId(catId));
+  subcats.forEach(subcat => {
     const opt = document.createElement("option");
-    opt.value = normalizeId(step.id);
-    opt.textContent = `Étape ${step.step_order}: ${step.description}`;
+    opt.value = normalizeId(subcat.id);
+    opt.textContent = subcat.name;
     els.stepSelect.appendChild(opt);
   });
 
-  els.stepSelect.disabled = steps.length === 0;
+  els.stepSelect.disabled = subcats.length === 0;
 }
 
 function renderHistory() {
   if (!els.historyList) return;
   els.historyList.innerHTML = "";
 
-  if (!historyItems.length) {
+  if (!taskHistory.length) {
     els.historyList.innerHTML = "<p>Aucun historique pour l’instant.</p>";
     return;
   }
 
-  historyItems.forEach(item => {
+  taskHistory.forEach(item => {
+    const task = catalogTasks.find(t => normalizeId(t.id) === normalizeId(item.task_id));
+    const subcat = catalogSubcategories.find(s => normalizeId(s.id) === normalizeId(item.subcategory_id));
     const div = document.createElement("div");
     div.className = "history-item";
     div.innerHTML = `
-      <strong>${new Date(item.completed_at).toLocaleString("fr-CA")}</strong>
-      <div>${formatMinutes(item.duration_seconds)} min</div>
+      <div>
+        <strong>${formatDate(item.completed_at)}</strong>
+        <div>${task?.name || "Tâche"}${subcat ? " — " + subcat.name : ""}</div>
+        ${item.note ? `<div>${item.note}</div>` : ""}
+      </div>
+      <div>${item.duration_minutes || 0} min</div>
     `;
     els.historyList.appendChild(div);
   });
@@ -260,11 +269,11 @@ function renderCurrent() {
 
   setVisible(els.currentCard, true);
 
-  const step = catalogSteps.find(s => normalizeId(s.id) === normalizeId(current.stepId));
-  const task = catalogTasks.find(t => normalizeId(t.id) === normalizeId(current.taskId));
   const cat = catalogCategories.find(c => normalizeId(c.id) === normalizeId(current.categoryId));
+  const task = catalogTasks.find(t => normalizeId(t.id) === normalizeId(current.taskId));
+  const subcat = catalogSubcategories.find(s => normalizeId(s.id) === normalizeId(current.subcategoryId));
 
-  els.currentText.textContent = `${cat?.name || ""} — ${task?.name || ""} — ${step?.description || ""}`;
+  els.currentText.textContent = `${cat?.name || ""} — ${subcat?.name || ""} — ${task?.name || ""}`.replace(/ — $/, "").replace(/^ — /, "");
 
   const mm = Math.floor(current.remainingSeconds / 60);
   const ss = current.remainingSeconds % 60;
@@ -323,10 +332,14 @@ function stopTimer() {
 async function recordCompletion(durationSeconds) {
   if (!current) return;
 
-  const { error } = await sb.from("user_step_completions").insert({
+  const note = prompt("Ajouter une note à l'historique ?") || "";
+
+  const { error } = await sb.from("task_history").insert({
     user_id: currentUser.id,
-    step_id: current.stepId,
-    duration_seconds: durationSeconds
+    task_id: current.taskId,
+    subcategory_id: current.subcategoryId || null,
+    duration_minutes: formatMinutes(durationSeconds),
+    note: note.trim() || null
   });
 
   if (error) {
@@ -334,11 +347,13 @@ async function recordCompletion(durationSeconds) {
     return;
   }
 
-  completedStepIds.push(normalizeId(current.stepId));
-  historyItems.unshift({
+  taskHistory.unshift({
+    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+    task_id: current.taskId,
+    subcategory_id: current.subcategoryId || null,
     completed_at: new Date().toISOString(),
-    duration_seconds: durationSeconds,
-    step_id: current.stepId
+    duration_minutes: formatMinutes(durationSeconds),
+    note: note.trim() || null
   });
 
   current = null;
@@ -350,31 +365,31 @@ async function recordCompletion(durationSeconds) {
 function startSession() {
   const categoryId = els.categorySelect.value;
   const taskId = els.taskSelect.value;
-  const stepId = els.stepSelect.value;
+  const subcategoryId = els.stepSelect.value;
   const minutes = parseInt(els.timerMinutes.value, 10) || 10;
 
-  if (!categoryId || !taskId || !stepId) {
-    toast("Choisis une catégorie, une tâche et une étape.", "error");
+  if (!categoryId || !taskId || !subcategoryId) {
+    toast("Choisis une catégorie, une tâche et une sous-catégorie.", "error");
     return;
   }
 
-  const step = catalogSteps.find(s => normalizeId(s.id) === normalizeId(stepId));
-  if (!step) {
-    toast("Étape introuvable.", "error");
+  const task = catalogTasks.find(t => normalizeId(t.id) === normalizeId(taskId));
+  if (!task) {
+    toast("Tâche introuvable.", "error");
     return;
   }
 
   current = {
     categoryId,
     taskId,
-    stepId,
+    subcategoryId,
     remainingSeconds: minutes * 60,
     plannedSeconds: minutes * 60,
     running: false
   };
 
   renderCurrent();
-  setVisible(els.selectorView, false);
+  setVisible(els.currentCard, true);
   els.currentCard.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
