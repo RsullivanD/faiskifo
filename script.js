@@ -71,7 +71,7 @@ const els = {
 
   categorySelect: document.getElementById("category-select"),
   taskSelect: document.getElementById("task-select"),
-  stepSelect: document.getElementById("step-select"),
+  stepSelect: document.getElementById("step-select"), // = sous-catégorie
   timerMinutes: document.getElementById("timer-minutes"),
   startSessionBtn: document.getElementById("start-session-btn"),
 
@@ -188,41 +188,21 @@ function renderCategoryOptions() {
     els.categorySelect.appendChild(opt);
   });
 
+  clearSelect(els.stepSelect, "Choisis une sous-catégorie");
+  els.stepSelect.disabled = true;
+
+  clearSelect(els.taskSelect, "Choisis une tâche");
+  els.taskSelect.disabled = true;
+}
+
+// Étape 1 : catégorie choisie -> peupler les sous-catégories
+function renderStepOptions() {
+  const catId = els.categorySelect.value;
+  clearSelect(els.stepSelect, "Choisis une sous-catégorie");
   clearSelect(els.taskSelect, "Choisis une tâche");
   els.taskSelect.disabled = true;
 
-  clearSelect(els.stepSelect, "Choisis une sous-catégorie");
-  els.stepSelect.disabled = true;
-}
-
-function renderTaskOptions() {
-  const catId = els.categorySelect.value;
-  clearSelect(els.taskSelect, "Choisis une tâche");
-  clearSelect(els.stepSelect, "Choisis une sous-catégorie");
-  els.stepSelect.disabled = true;
-
   if (!catId) {
-    els.taskSelect.disabled = true;
-    return;
-  }
-
-  const tasks = catalogTasks.filter(t => normalizeId(t.category_id) === normalizeId(catId));
-  tasks.forEach(task => {
-    const opt = document.createElement("option");
-    opt.value = normalizeId(task.id);
-    opt.textContent = task.name;
-    els.taskSelect.appendChild(opt);
-  });
-
-  els.taskSelect.disabled = tasks.length === 0;
-}
-
-function renderStepOptions() {
-  const catId = els.categorySelect.value;
-  const taskId = els.taskSelect.value;
-  clearSelect(els.stepSelect, "Choisis une sous-catégorie");
-
-  if (!catId || !taskId) {
     els.stepSelect.disabled = true;
     return;
   }
@@ -238,12 +218,37 @@ function renderStepOptions() {
   els.stepSelect.disabled = subcats.length === 0;
 }
 
+// Étape 2 : sous-catégorie choisie -> peupler les tâches (filtrées par catégorie ET sous-catégorie)
+function renderTaskOptions() {
+  const catId = els.categorySelect.value;
+  const subcatId = els.stepSelect.value;
+  clearSelect(els.taskSelect, "Choisis une tâche");
+
+  if (!catId || !subcatId) {
+    els.taskSelect.disabled = true;
+    return;
+  }
+
+  const tasks = catalogTasks.filter(t =>
+    normalizeId(t.category_id) === normalizeId(catId) &&
+    normalizeId(t.subcategory_id) === normalizeId(subcatId)
+  );
+  tasks.forEach(task => {
+    const opt = document.createElement("option");
+    opt.value = normalizeId(task.id);
+    opt.textContent = task.name;
+    els.taskSelect.appendChild(opt);
+  });
+
+  els.taskSelect.disabled = tasks.length === 0;
+}
+
 function renderHistory() {
   if (!els.historyList) return;
   els.historyList.innerHTML = "";
 
   if (!taskHistory.length) {
-    els.historyList.innerHTML = "<p>Aucun historique pour l’instant.</p>";
+    els.historyList.innerHTML = "<p>Aucun historique pour l'instant.</p>";
     return;
   }
 
@@ -294,11 +299,33 @@ function showTab(tab) {
   els.tabHistoryBtn.classList.toggle("tab-active", !focus);
 }
 
-function renderAll() {
-  renderTaskOptions();
-  renderStepOptions();
-  renderHistory();
+/* ============ Session ============ */
+function startSession() {
+  const categoryId = els.categorySelect.value;
+  const subcategoryId = els.stepSelect.value;
+  const taskId = els.taskSelect.value;
+  const minutes = parseInt(els.timerMinutes.value, 10);
+
+  if (!categoryId || !subcategoryId || !taskId) {
+    toast("Choisis une catégorie, une sous-catégorie et une tâche.", "error");
+    return;
+  }
+  if (!minutes || minutes <= 0) {
+    toast("Indique un temps valide.", "error");
+    return;
+  }
+
+  current = {
+    categoryId,
+    subcategoryId,
+    taskId,
+    plannedSeconds: minutes * 60,
+    remainingSeconds: minutes * 60,
+    running: false
+  };
+
   renderCurrent();
+  startTimer();
 }
 
 /* ============ Timer ============ */
@@ -336,20 +363,57 @@ async function recordCompletion(durationSeconds) {
   if (!current) return;
 
   const note = prompt("Ajouter une note à l'historique ?") || "";
+  const durationMinutes = formatMinutes(durationSeconds);
 
-  const { error } = await sb.from("task_history").insert({
+  const { data, error } = await sb.from("task_history").insert({
     user_id: currentUser.id,
     task_id: current.taskId,
     subcategory_id: current.subcategoryId || null,
-    duration_minutes: formatMinutes(durationSeconds),
+    duration_minutes: durationMinutes,
     note: note.trim() || null
-  });
+  }).select().single();
 
   if (error) {
     toast("Erreur en sauvegardant : " + error.message, "error");
     return;
   }
 
-  taskHistory.unshift({
+  taskHistory.unshift(data || {
     id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
     task_id: current.taskId,
+    subcategory_id: current.subcategoryId || null,
+    completed_at: new Date().toISOString(),
+    duration_minutes: durationMinutes,
+    note: note.trim() || null
+  });
+
+  current = null;
+  renderCurrent();
+  renderHistory();
+
+  // Réinitialise les sélecteurs pour une prochaine session
+  els.categorySelect.value = "";
+  renderStepOptions();
+}
+
+function markDone() {
+  if (!current) return;
+  const elapsed = current.plannedSeconds - current.remainingSeconds;
+  stopTimer();
+  recordCompletion(elapsed);
+}
+
+/* ============ Événements ============ */
+els.authSendBtn?.addEventListener("click", sendMagicLink);
+els.authLogoutBtn?.addEventListener("click", logout);
+
+els.tabFocusBtn?.addEventListener("click", () => showTab("focus"));
+els.tabHistoryBtn?.addEventListener("click", () => showTab("history"));
+
+els.categorySelect?.addEventListener("change", renderStepOptions);
+els.stepSelect?.addEventListener("change", renderTaskOptions);
+
+els.startSessionBtn?.addEventListener("click", startSession);
+els.pauseTimerBtn?.addEventListener("click", stopTimer);
+els.resumeTimerBtn?.addEventListener("click", startTimer);
+els.markDoneBtn?.addEventListener("click", markDone);
