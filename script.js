@@ -97,7 +97,7 @@ async function sendMagicLink() {
   els.authSendBtn.disabled = true;
   const { error } = await sb.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: window.location.origin + window.location.pathname }
+    options: { emailRedirectTo: "https://faiskifo.avecjoie.ca" }
   });
   els.authSendBtn.disabled = false;
 
