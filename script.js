@@ -97,7 +97,10 @@ async function sendMagicLink() {
   els.authSendBtn.disabled = true;
   const { error } = await sb.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: "https://faiskifo.avecjoie.ca" }
+    options: {
+      emailRedirectTo: "https://faiskifo.avecjoie.ca/",
+      redirectTo: "https://faiskifo.avecjoie.ca/"
+    }
   });
   els.authSendBtn.disabled = false;
 
@@ -350,71 +353,3 @@ async function recordCompletion(durationSeconds) {
   taskHistory.unshift({
     id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
     task_id: current.taskId,
-    subcategory_id: current.subcategoryId || null,
-    completed_at: new Date().toISOString(),
-    duration_minutes: formatMinutes(durationSeconds),
-    note: note.trim() || null
-  });
-
-  current = null;
-  renderHistory();
-  renderCurrent();
-  renderAll();
-}
-
-function startSession() {
-  const categoryId = els.categorySelect.value;
-  const taskId = els.taskSelect.value;
-  const subcategoryId = els.stepSelect.value;
-  const minutes = parseInt(els.timerMinutes.value, 10) || 10;
-
-  if (!categoryId || !taskId || !subcategoryId) {
-    toast("Choisis une catégorie, une tâche et une sous-catégorie.", "error");
-    return;
-  }
-
-  const task = catalogTasks.find(t => normalizeId(t.id) === normalizeId(taskId));
-  if (!task) {
-    toast("Tâche introuvable.", "error");
-    return;
-  }
-
-  current = {
-    categoryId,
-    taskId,
-    subcategoryId,
-    remainingSeconds: minutes * 60,
-    plannedSeconds: minutes * 60,
-    running: false
-  };
-
-  renderCurrent();
-  setVisible(els.currentCard, true);
-  els.currentCard.scrollIntoView({ behavior: "smooth", block: "center" });
-}
-
-/* ============ Events ============ */
-els.authSendBtn.onclick = sendMagicLink;
-els.authLogoutBtn.onclick = logout;
-
-els.tabFocusBtn.onclick = () => showTab("focus");
-els.tabHistoryBtn.onclick = () => showTab("history");
-
-els.categorySelect.addEventListener("change", renderTaskOptions);
-els.taskSelect.addEventListener("change", renderStepOptions);
-els.startSessionBtn.onclick = startSession;
-
-els.pauseTimerBtn.onclick = stopTimer;
-els.resumeTimerBtn.onclick = startTimer;
-
-els.markDoneBtn.onclick = () => {
-  if (!current) return;
-  stopTimer();
-  recordCompletion(current.plannedSeconds);
-};
-
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && current) {
-    stopTimer();
-  }
-});
