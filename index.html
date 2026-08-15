@@ -50,9 +50,9 @@
           </div>
 
           <div class="stack">
-            <label for="step-select">Étape</label>
+            <label for="step-select">Sous-catégorie</label>
             <select id="step-select" disabled>
-              <option value="">Choisis une étape</option>
+              <option value="">Choisis une sous-catégorie</option>
             </select>
           </div>
 
@@ -67,7 +67,7 @@
         </div>
 
         <section id="current-step" class="card hidden current-card">
-          <h3>Étape en cours</h3>
+          <h3>Session en cours</h3>
           <p id="current-step-text"></p>
           <div id="timer">00:00</div>
           <div class="row">
@@ -85,16 +85,6 @@
     </section>
 
     <div id="toast-container"></div>
-
-    <div id="confirm-modal" class="modal hidden">
-      <div class="modal-content card">
-        <h3 id="confirm-modal-title">Confirmer ?</h3>
-        <div class="row">
-          <button id="confirm-modal-ok" class="btn-primary" type="button">Oui</button>
-          <button id="confirm-modal-cancel" class="btn-secondary" type="button">Non</button>
-        </div>
-      </div>
-    </div>
   </main>
 
   <script src="script.js"></script>
