@@ -1,5 +1,19 @@
+:root {
+  --teal-900: #0c3b3a;
+  --teal-700: #12564f;
+  --teal-500: #1c8577;
+  --teal-300: #7fd1c2;
+  --mint-100: #eafaf6;
+  --ink: #0c3b3a;
+  --muted: #4b6b68;
+}
+
 .hidden {
   display: none !important;
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
@@ -61,7 +75,7 @@ button {
 }
 
 .btn-primary {
-  background: #4f46e5;
+  background: var(--teal-500);
   color: white;
 }
 
@@ -82,6 +96,9 @@ button {
 .auth-status {
   margin-top: 12px;
   font-size: 0.95rem;
+  text-align: center;
+  color: var(--teal-900);
+  font-weight: 600;
 }
 
 .toast {
@@ -108,16 +125,17 @@ button {
 .tab-btn {
   background: #e5e7eb;
   color: #111827;
+  font-weight: 600;
 }
 
 .tab-active {
-  background: #4f46e5;
+  background: var(--teal-700);
   color: white;
 }
 
 .current-card {
-  border: 2px solid #4f46e5;
-  background: #eef2ff;
+  border: 2px solid var(--teal-500);
+  background: var(--mint-100);
 }
 
 #timer {
@@ -126,14 +144,12 @@ button {
   text-align: center;
   margin: 16px 0;
   letter-spacing: 0.05em;
+  color: var(--teal-900);
 }
 
 .history-item {
   padding: 12px 0;
   border-bottom: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
 }
 
 .field-hint {
@@ -157,4 +173,141 @@ label {
 .modal-content {
   width: 100%;
   max-width: 420px;
+}
+
+/* ===================== Ć‰cran de connexion ===================== */
+.auth-card {
+  background: linear-gradient(180deg, var(--teal-900) 0%, var(--teal-700) 30%, var(--teal-300) 78%, var(--mint-100) 100%);
+  padding: 36px 28px;
+  text-align: center;
+}
+
+.brand-title {
+  color: white;
+  font-size: 1.5rem;
+  line-height: 1.3;
+  margin: 0 0 20px;
+}
+
+.steps-list {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 24px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 20px;
+  color: white;
+  font-weight: 600;
+}
+
+.steps-list li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.step-num {
+  font-weight: 700;
+}
+
+.auth-form {
+  max-width: 320px;
+  margin: 0 auto;
+  display: grid;
+  gap: 12px;
+}
+
+.auth-form input {
+  border-radius: 999px;
+  border: none;
+  text-align: center;
+  padding: 14px 18px;
+}
+
+.btn-pill {
+  background: var(--teal-900);
+  color: white;
+  border-radius: 999px;
+  padding: 14px 18px;
+  font-weight: 700;
+  width: 100%;
+}
+
+.btn-pill:hover {
+  background: var(--teal-700);
+}
+
+.disclaimer {
+  margin: 24px auto 0;
+  max-width: 460px;
+  font-size: 0.8rem;
+  color: var(--teal-900);
+}
+
+/* ===================== En-tĆŖte connectĆ© ===================== */
+.user-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-email {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 0.9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.motivational {
+  background: var(--mint-100);
+  color: var(--teal-900);
+  border-radius: 12px;
+  padding: 14px 16px;
+  font-weight: 600;
+  margin-top: 0;
+}
+
+/* ===================== Personnalisation ===================== */
+.checkbox-list {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.checkbox-option,
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: white;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.checkbox-option input,
+.radio-option input {
+  width: auto;
+  margin: 0;
+}
+
+.time-row {
+  display: grid;
+  grid-template-columns: 1fr 90px;
+  gap: 10px;
+  align-items: center;
+}
+
+.time-row label {
+  font-weight: 500;
+}
+
+.time-row input {
+  text-align: center;
 }
