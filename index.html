@@ -9,43 +9,57 @@
 </head>
 <body>
   <main id="app">
-    <section id="auth" class="card">
-      <h2 id="auth-heading">Se connecter</h2>
 
+    <!-- ===================== Connexion (déconnecté) ===================== -->
+    <section id="auth" class="card auth-card">
       <div id="auth-logged-out">
-        <p class="field-hint">Entre ton courriel pour recevoir un lien magique.</p>
-        <input id="auth-email-otp" type="email" placeholder="ton@courriel.com" autocomplete="email" />
-        <button id="auth-send-btn" class="btn-primary btn-full" type="button">Envoyer le lien magique</button>
-        <p id="auth-otp-status" class="auth-status hidden"></p>
-      </div>
+        <h1 class="brand-title">Fais ton ménage sans pression et sois efficace, une tâche à la fois!</h1>
 
-      <div id="auth-logged-in" class="hidden">
-        <p>Connecté en tant que <strong id="auth-user-email"></strong></p>
-        <button id="auth-logout-btn" class="btn-secondary" type="button">Se déconnecter</button>
+        <ol class="steps-list">
+          <li><span class="step-num">1.</span> Inscris ton courriel</li>
+          <li><span class="step-num">2.</span> Clic sur le lien magique</li>
+          <li><span class="step-num">3.</span> Laisse-toi guider!</li>
+        </ol>
+
+        <div class="auth-form">
+          <input id="auth-email-otp" type="email" placeholder="courriel" autocomplete="email" />
+          <button id="auth-send-btn" class="btn-pill" type="button">Envoyer le lien magique</button>
+          <p id="auth-otp-status" class="auth-status hidden"></p>
+        </div>
+
+        <p class="disclaimer">Courriel utilisé à des fins de connexion uniquement, pas de spam ni de partage de données non autorisé.</p>
       </div>
     </section>
 
+    <!-- ===================== App (connecté) ===================== -->
     <section id="app-content" class="hidden">
-      <div class="app-tabs">
-        <button id="tab-focus-btn" class="tab-btn tab-active" type="button">Session</button>
-        <button id="tab-history-btn" class="tab-btn" type="button">Historique</button>
+
+      <div class="user-row">
+        <span id="auth-user-email" class="user-email"></span>
+        <button id="auth-logout-btn" class="btn-secondary" type="button">Se déconnecter</button>
       </div>
 
+      <div class="app-tabs">
+        <button id="tab-focus-btn" class="tab-btn tab-active" type="button">Je me lance!</button>
+        <button id="tab-history-btn" class="tab-btn" type="button">Mon faiskifo</button>
+      </div>
+
+      <!-- ---------- Onglet : Je me lance! ---------- -->
       <section id="focus-view" class="card">
-        <h2>Session</h2>
+        <p class="motivational">Lance-toi tout de suite et ignore ce qui ne te concerne pas, ou personnalise ton expérience pour une efficacité accrue!</p>
 
         <div id="selector-view">
           <div class="stack">
-            <label for="category-select">Catégorie</label>
+            <label for="category-select">Type de ménage</label>
             <select id="category-select">
-              <option value="">Choisis une catégorie</option>
+              <option value="">Choisis un type de ménage</option>
             </select>
           </div>
 
           <div class="stack">
-            <label for="step-select">Sous-catégorie</label>
+            <label for="step-select">Pièce</label>
             <select id="step-select" disabled>
-              <option value="">Choisis une sous-catégorie</option>
+              <option value="">Choisis une pièce</option>
             </select>
           </div>
 
@@ -57,7 +71,7 @@
           </div>
 
           <div class="stack">
-            <label for="timer-minutes">Temps accordé (minutes)</label>
+            <label for="timer-minutes">Combien de temps t'accordes-tu?</label>
             <input id="timer-minutes" type="number" min="1" value="10" />
           </div>
 
@@ -73,15 +87,94 @@
           <div class="row">
             <button id="pause-timer-btn" class="btn-secondary" type="button">Pause</button>
             <button id="resume-timer-btn" class="btn-secondary" type="button">Reprendre</button>
+            <button id="skip-task-btn" class="btn-secondary" type="button">Passer cette tâche</button>
             <button id="mark-done-btn" class="btn-success" type="button">Terminé</button>
           </div>
         </section>
       </section>
 
+      <!-- ---------- Onglet : Mon faiskifo ---------- -->
       <section id="history-view" class="card hidden">
-        <h2>Historique</h2>
-        <div id="history-list"></div>
+        <h2>Mon faiskifo</h2>
+
+        <div class="row">
+          <button id="show-history-btn" class="btn-secondary" type="button">Mon historique</button>
+          <button id="show-personalize-btn" class="btn-secondary" type="button">Personnalise ton expérience</button>
+        </div>
+
+        <!-- Mon historique -->
+        <div id="history-panel" class="hidden">
+          <h3>Mon historique</h3>
+          <div id="history-list"></div>
+        </div>
+
+        <!-- Personnalise ton expérience (wizard) -->
+        <div id="personalize-panel" class="hidden">
+
+          <div id="pz-step-category" class="pz-step">
+            <h3>Personnalise ton expérience</h3>
+            <p class="field-hint">Pour quel type de ménage veux-tu personnaliser tes pièces?</p>
+            <div class="stack">
+              <select id="pz-category-select">
+                <option value="">Choisis un type de ménage</option>
+              </select>
+            </div>
+            <div class="row">
+              <button id="pz-start-btn" class="btn-primary" type="button">Suivant</button>
+            </div>
+          </div>
+
+          <div id="pz-step-rooms" class="pz-step hidden">
+            <h3>Mes pièces</h3>
+            <p class="field-hint">Coche les pièces où tu dois parfois faire du ménage, puis appuie sur Suivant.</p>
+            <div id="pz-rooms-list" class="checkbox-list"></div>
+            <div class="row">
+              <button id="pz-rooms-back-btn" class="btn-secondary" type="button">Retour</button>
+              <button id="pz-rooms-next-btn" class="btn-primary" type="button">Suivant</button>
+            </div>
+          </div>
+
+          <div id="pz-step-tasks" class="pz-step hidden">
+            <h3 id="pz-current-room-title"></h3>
+            <p class="field-hint">Coche les tâches possibles pour cette pièce.</p>
+            <div id="pz-tasks-list" class="checkbox-list"></div>
+            <div class="row">
+              <button id="pz-tasks-back-btn" class="btn-secondary" type="button">Retour</button>
+              <button id="pz-tasks-next-btn" class="btn-primary" type="button">Suivant</button>
+            </div>
+          </div>
+
+          <div id="pz-step-timing" class="pz-step hidden">
+            <h3>Veux-tu déterminer le temps par tâche maintenant?</h3>
+            <div class="stack">
+              <label class="radio-option"><input type="radio" name="pz-timing" value="now" /> Oui</label>
+              <label class="radio-option"><input type="radio" name="pz-timing" value="later" /> Non, je vais le faire à mesure</label>
+              <label class="radio-option"><input type="radio" name="pz-timing" value="learn" /> Non, je préfère que faiskifo enregistre le temps qu'il me faut d'abord</label>
+            </div>
+            <div class="row">
+              <button id="pz-timing-back-btn" class="btn-secondary" type="button">Retour</button>
+              <button id="pz-timing-next-btn" class="btn-primary" type="button">Suivant</button>
+            </div>
+          </div>
+
+          <div id="pz-step-times" class="pz-step hidden">
+            <h3>Combien de temps pour chaque tâche?</h3>
+            <div id="pz-times-list" class="stack"></div>
+            <div class="row">
+              <button id="pz-times-back-btn" class="btn-secondary" type="button">Retour</button>
+              <button id="pz-times-save-btn" class="btn-primary" type="button">Enregistrer</button>
+            </div>
+          </div>
+
+          <div id="pz-step-done" class="pz-step hidden">
+            <h3>C'est personnalisé!</h3>
+            <p class="field-hint">Tes pièces et tes tâches sont prêtes.</p>
+            <button id="pz-launch-btn" class="btn-primary btn-full" type="button">Je me lance!</button>
+          </div>
+
+        </div>
       </section>
+
     </section>
 
     <div id="toast-container"></div>
