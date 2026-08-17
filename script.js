@@ -127,8 +127,12 @@ const els = {
 
   showHistoryBtn: document.getElementById("show-history-btn"),
   showPersonalizeBtn: document.getElementById("show-personalize-btn"),
+  showResetBtn: document.getElementById("show-reset-btn"),
   historyPanel: document.getElementById("history-panel"),
   personalizePanel: document.getElementById("personalize-panel"),
+  resetPanel: document.getElementById("reset-panel"),
+  resetPreferencesBtn: document.getElementById("reset-preferences-btn"),
+  resetHistoryBtn: document.getElementById("reset-history-btn"),
   historyList: document.getElementById("history-list"),
 
   // Wizard "Personnalise ton expérience"
@@ -473,12 +477,61 @@ function showTab(tab) {
 function showHistoryPanel() {
   setVisible(els.historyPanel, true);
   setVisible(els.personalizePanel, false);
+  setVisible(els.resetPanel, false);
 }
 
 function showPersonalizePanel() {
   setVisible(els.historyPanel, false);
   setVisible(els.personalizePanel, true);
+  setVisible(els.resetPanel, false);
   resetPersonalizeWizard();
+}
+
+function showResetPanel() {
+  setVisible(els.historyPanel, false);
+  setVisible(els.personalizePanel, false);
+  setVisible(els.resetPanel, true);
+}
+
+/* ============ Réinitialisation ============ */
+async function resetPreferencesData() {
+  const confirmed = confirm(
+    "Réinitialiser tes préférences va retirer toutes les pièces et tâches que tu as personnalisées (épinglées) et les temps que tu as enregistrés. Ton historique ne sera pas touché. Continuer?"
+  );
+  if (!confirmed) return;
+
+  const { error } = await sb.from("user_task_preferences")
+    .delete()
+    .eq("user_id", currentUser.id);
+
+  if (error) {
+    toast("Erreur en réinitialisant : " + error.message, "error");
+    return;
+  }
+
+  userTaskPreferences = [];
+  renderStepOptions();
+  toast("Tes préférences ont été réinitialisées.", "success");
+}
+
+async function resetHistoryData() {
+  const confirmed = confirm(
+    "Réinitialiser ton historique va effacer toutes tes tâches complétées enregistrées. Tes préférences ne seront pas touchées. Continuer?"
+  );
+  if (!confirmed) return;
+
+  const { error } = await sb.from("task_history")
+    .delete()
+    .eq("user_id", currentUser.id);
+
+  if (error) {
+    toast("Erreur en réinitialisant : " + error.message, "error");
+    return;
+  }
+
+  taskHistory = [];
+  renderHistory();
+  toast("Ton historique a été réinitialisé.", "success");
 }
 
 /* ============ Faiskifo pige une tâche ============ */
@@ -941,6 +994,9 @@ els.markDoneBtn?.addEventListener("click", markDone);
 
 els.showHistoryBtn?.addEventListener("click", showHistoryPanel);
 els.showPersonalizeBtn?.addEventListener("click", showPersonalizePanel);
+els.showResetBtn?.addEventListener("click", showResetPanel);
+els.resetPreferencesBtn?.addEventListener("click", resetPreferencesData);
+els.resetHistoryBtn?.addEventListener("click", resetHistoryData);
 
 els.pzStartBtn?.addEventListener("click", pzGoToRooms);
 els.pzRoomsBackBtn?.addEventListener("click", () => showPzStep("category"));
