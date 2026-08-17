@@ -107,12 +107,28 @@
         <div class="row">
           <button id="show-history-btn" class="btn-secondary" type="button">Mon historique</button>
           <button id="show-personalize-btn" class="btn-secondary" type="button">Personnalise ton expérience</button>
+          <button id="show-reset-btn" class="btn-secondary" type="button">Réinitialiser</button>
         </div>
 
         <!-- Mon historique -->
         <div id="history-panel" class="hidden">
           <h3>Mon historique</h3>
           <div id="history-list"></div>
+        </div>
+
+        <!-- Réinitialiser -->
+        <div id="reset-panel" class="hidden">
+          <h3>Réinitialiser</h3>
+          <p class="field-hint">Ces actions sont permanentes et ne peuvent pas être annulées.</p>
+
+          <div class="stack">
+            <div class="row">
+              <button id="reset-preferences-btn" class="btn-secondary btn-full" type="button">Réinitialiser mes préférences (pièces et tâches personnalisées)</button>
+            </div>
+            <div class="row">
+              <button id="reset-history-btn" class="btn-secondary btn-full" type="button">Réinitialiser mon historique</button>
+            </div>
+          </div>
         </div>
 
         <!-- Personnalise ton expérience (wizard) -->
