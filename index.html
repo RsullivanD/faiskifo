@@ -1,336 +1,192 @@
-:root {
-  --teal-900: #0c3b3a;
-  --teal-700: #12564f;
-  --teal-500: #1c8577;
-  --teal-300: #7fd1c2;
-  --mint-100: #eafaf6;
-  --ink: #0c3b3a;
-  --muted: #4b6b68;
-}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Faiskifo</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <main id="app">
 
-.hidden {
-  display: none !important;
-}
+    <!-- ===================== Connexion (déconnecté) ===================== -->
+    <section id="auth" class="card auth-card">
+      <div id="auth-logged-out">
+        <h1 class="brand-title">Fais ton ménage sans pression et sois efficace, une tâche à la fois!</h1>
 
-* {
-  box-sizing: border-box;
-}
+        <ol class="steps-list">
+          <li><span class="step-num">1.</span> Inscris ton courriel</li>
+          <li><span class="step-num">2.</span> Clic sur le lien magique</li>
+          <li><span class="step-num">3.</span> Laisse-toi guider!</li>
+        </ol>
 
-body {
-  margin: 0;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #f5f7fb;
-  color: #1f2937;
-}
+        <div class="auth-form">
+          <input id="auth-email-otp" type="email" placeholder="courriel" autocomplete="email" />
+          <button id="auth-send-btn" class="btn-pill" type="button">Envoyer le lien magique</button>
+          <p id="auth-otp-status" class="auth-status hidden"></p>
+        </div>
 
-#app {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 20px;
-  display: grid;
-  gap: 16px;
-}
+        <p class="disclaimer">Courriel utilisé à des fins de connexion uniquement, pas de spam ni de partage de données non autorisé.</p>
+      </div>
+    </section>
 
-.card {
-  background: white;
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06);
-}
+    <!-- ===================== App (connecté) ===================== -->
+    <section id="app-content" class="hidden">
 
-.row {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: center;
-}
+      <div class="user-row">
+        <span id="auth-user-email" class="user-email"></span>
+        <button id="auth-logout-btn" class="btn-secondary" type="button">Se déconnecter</button>
+      </div>
 
-.stack {
-  display: grid;
-  gap: 8px;
-  margin-bottom: 14px;
-}
+      <div class="app-tabs">
+        <button id="tab-focus-btn" class="tab-btn tab-active" type="button">Je me lance!</button>
+        <button id="tab-history-btn" class="tab-btn" type="button">Mon faiskifo</button>
+      </div>
 
-input,
-select,
-button {
-  font: inherit;
-}
+      <!-- ---------- Onglet : Je me lance! ---------- -->
+      <section id="focus-view" class="card">
+        <p class="motivational">
+          Lance-toi tout de suite et ignore ce qui ne te concerne pas, ou
+          <button id="motivational-personalize-link" class="link-inline" type="button">personnalise ton expérience</button>
+          pour une efficacité accrue!
+        </p>
 
-input,
-select {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 12px 14px;
-  border: 1px solid #d1d5db;
-  border-radius: 12px;
-  background: white;
-}
+        <div id="selector-view">
+          <p class="field-hint">Tout est facultatif — laisse sur « Peu importe » et Faiskifo choisit pour toi.</p>
 
-button {
-  border: 0;
-  border-radius: 12px;
-  padding: 12px 16px;
-  cursor: pointer;
-}
+          <div class="stack">
+            <label for="category-select">Type de ménage</label>
+            <select id="category-select">
+              <option value="">Peu importe</option>
+            </select>
+          </div>
 
-.btn-primary {
-  background: var(--teal-500);
-  color: white;
-}
+          <div class="stack">
+            <label for="step-select">Pièce</label>
+            <select id="step-select">
+              <option value="">Peu importe</option>
+            </select>
+          </div>
 
-.btn-secondary {
-  background: #e5e7eb;
-  color: #111827;
-}
+          <div class="row">
+            <button id="start-session-btn" class="btn-primary" type="button">Pige-moi une tâche!</button>
+          </div>
+        </div>
 
-.btn-success {
-  background: #16a34a;
-  color: white;
-}
+        <section id="current-step" class="card hidden current-card">
+          <h3>Ta tâche</h3>
+          <p id="current-step-text"></p>
 
-.btn-full {
-  width: 100%;
-}
+          <div id="pick-time-view" class="stack">
+            <label for="pick-timer-minutes">Combien de temps t'accordes-tu? <span class="field-hint-inline">(facultatif)</span></label>
+            <input id="pick-timer-minutes" type="number" min="1" placeholder="Laisse vide, Faiskifo décide" />
+            <div class="row">
+              <button id="confirm-start-timer-btn" class="btn-primary" type="button">Démarrer le minuteur</button>
+              <button id="skip-task-before-btn" class="btn-secondary" type="button">Passer cette tâche</button>
+              <button id="cancel-pick-btn" class="btn-secondary" type="button">Annuler</button>
+            </div>
+          </div>
 
-.auth-status {
-  margin-top: 12px;
-  font-size: 0.95rem;
-  text-align: center;
-  color: var(--teal-900);
-  font-weight: 600;
-}
+          <div id="timer-running-view" class="hidden">
+            <div id="timer">00:00</div>
+            <div class="row">
+              <button id="pause-timer-btn" class="btn-secondary" type="button">Pause</button>
+              <button id="resume-timer-btn" class="btn-secondary" type="button">Reprendre</button>
+              <button id="skip-task-btn" class="btn-secondary" type="button">Passer cette tâche</button>
+              <button id="mark-done-btn" class="btn-success" type="button">Terminé</button>
+            </div>
+          </div>
+        </section>
+      </section>
 
-.toast {
-  background: #111827;
-  color: white;
-  padding: 12px 14px;
-  border-radius: 12px;
-  margin-top: 10px;
-}
+      <!-- ---------- Onglet : Mon faiskifo ---------- -->
+      <section id="history-view" class="card hidden">
+        <h2>Mon faiskifo</h2>
 
-.toast-success {
-  background: #166534;
-}
+        <div class="row">
+          <button id="show-history-btn" class="btn-secondary" type="button">Mon historique</button>
+          <button id="show-personalize-btn" class="btn-secondary" type="button">Personnalise ton expérience</button>
+        </div>
 
-.toast-error {
-  background: #991b1b;
-}
+        <!-- Mon historique -->
+        <div id="history-panel" class="hidden">
+          <h3>Mon historique</h3>
+          <div id="history-list"></div>
+        </div>
 
-.app-tabs {
-  display: flex;
-  gap: 10px;
-}
+        <!-- Personnalise ton expérience (wizard) -->
+        <div id="personalize-panel" class="hidden">
 
-.tab-btn {
-  background: #e5e7eb;
-  color: #111827;
-  font-weight: 600;
-}
+          <div id="pz-step-category" class="pz-step">
+            <h3>Personnalise ton expérience</h3>
+            <p class="field-hint">Pour quel type de ménage veux-tu personnaliser tes pièces?</p>
+            <div class="stack">
+              <select id="pz-category-select">
+                <option value="">Choisis un type de ménage</option>
+              </select>
+            </div>
+            <div class="row">
+              <button id="pz-start-btn" class="btn-primary" type="button">Suivant</button>
+            </div>
+          </div>
 
-.tab-active {
-  background: var(--teal-700);
-  color: white;
-}
+          <div id="pz-step-rooms" class="pz-step hidden">
+            <h3>Mes pièces</h3>
+            <p class="field-hint">Coche les pièces où tu dois parfois faire du ménage, puis appuie sur Suivant.</p>
+            <div id="pz-rooms-list" class="checkbox-list"></div>
+            <div class="row">
+              <button id="pz-rooms-back-btn" class="btn-secondary" type="button">Retour</button>
+              <button id="pz-rooms-next-btn" class="btn-primary" type="button">Suivant</button>
+            </div>
+          </div>
 
-.current-card {
-  border: 2px solid var(--teal-500);
-  background: var(--mint-100);
-}
+          <div id="pz-step-tasks" class="pz-step hidden">
+            <h3 id="pz-current-room-title"></h3>
+            <p class="field-hint">Coche les tâches possibles pour cette pièce.</p>
+            <div id="pz-tasks-list" class="checkbox-list"></div>
+            <div class="row">
+              <button id="pz-tasks-back-btn" class="btn-secondary" type="button">Retour</button>
+              <button id="pz-tasks-next-btn" class="btn-primary" type="button">Suivant</button>
+            </div>
+          </div>
 
-#timer {
-  font-size: 3rem;
-  font-weight: 700;
-  text-align: center;
-  margin: 16px 0;
-  letter-spacing: 0.05em;
-  color: var(--teal-900);
-}
+          <div id="pz-step-timing" class="pz-step hidden">
+            <h3>Veux-tu déterminer le temps par tâche maintenant?</h3>
+            <div class="stack">
+              <label class="radio-option"><input type="radio" name="pz-timing" value="now" /> Oui, je le détermine d'avance</label>
+              <label class="radio-option"><input type="radio" name="pz-timing" value="later" /> Non, je vais le faire à mesure, quand la tâche apparaît</label>
+              <label class="radio-option"><input type="radio" name="pz-timing" value="learn" /> Non, je préfère que Faiskifo enregistre le temps qu'il me faut d'abord et l'utilise comme guide</label>
+            </div>
+            <div class="row">
+              <button id="pz-timing-back-btn" class="btn-secondary" type="button">Retour</button>
+              <button id="pz-timing-next-btn" class="btn-primary" type="button">Suivant</button>
+            </div>
+          </div>
 
-.history-item {
-  padding: 12px 0;
-  border-bottom: 1px solid #e5e7eb;
-}
+          <div id="pz-step-times" class="pz-step hidden">
+            <h3>Combien de temps pour chaque tâche?</h3>
+            <div id="pz-times-list" class="stack"></div>
+            <div class="row">
+              <button id="pz-times-back-btn" class="btn-secondary" type="button">Retour</button>
+              <button id="pz-times-save-btn" class="btn-primary" type="button">Enregistrer</button>
+            </div>
+          </div>
 
-.field-hint {
-  color: #6b7280;
-  margin-top: 0;
-}
+          <div id="pz-step-done" class="pz-step hidden">
+            <h3>C'est personnalisé!</h3>
+            <p class="field-hint">Tes pièces et tes tâches sont prêtes.</p>
+            <button id="pz-launch-btn" class="btn-primary btn-full" type="button">Je me lance!</button>
+          </div>
 
-.field-hint-inline {
-  color: #6b7280;
-  font-weight: 400;
-  font-size: 0.85em;
-}
+        </div>
+      </section>
 
-label {
-  font-weight: 600;
-}
+    </section>
 
-.modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  display: grid;
-  place-items: center;
-  padding: 20px;
-}
+    <div id="toast-container"></div>
+  </main>
 
-.modal-content {
-  width: 100%;
-  max-width: 420px;
-}
-
-/* ===================== Écran de connexion ===================== */
-.auth-card {
-  background: linear-gradient(180deg, var(--teal-900) 0%, var(--teal-700) 30%, var(--teal-300) 78%, var(--mint-100) 100%);
-  padding: 36px 28px;
-  text-align: center;
-}
-
-.brand-title {
-  color: white;
-  font-size: 1.5rem;
-  line-height: 1.3;
-  margin: 0 0 20px;
-}
-
-.steps-list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 24px;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 8px 20px;
-  color: white;
-  font-weight: 600;
-}
-
-.steps-list li {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  white-space: nowrap;
-}
-
-.step-num {
-  font-weight: 700;
-}
-
-.auth-form {
-  max-width: 320px;
-  margin: 0 auto;
-  display: grid;
-  gap: 12px;
-}
-
-.auth-form input {
-  border-radius: 999px;
-  border: none;
-  text-align: center;
-  padding: 14px 18px;
-}
-
-.btn-pill {
-  background: var(--teal-900);
-  color: white;
-  border-radius: 999px;
-  padding: 14px 18px;
-  font-weight: 700;
-  width: 100%;
-}
-
-.btn-pill:hover {
-  background: var(--teal-700);
-}
-
-.disclaimer {
-  margin: 24px auto 0;
-  max-width: 460px;
-  font-size: 0.8rem;
-  color: var(--teal-900);
-}
-
-/* ===================== En-tête connecté ===================== */
-.user-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 12px;
-}
-
-.user-email {
-  font-weight: 600;
-  color: var(--muted);
-  font-size: 0.9rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.motivational {
-  background: var(--mint-100);
-  color: var(--teal-900);
-  border-radius: 12px;
-  padding: 14px 16px;
-  font-weight: 600;
-  margin-top: 0;
-}
-
-.link-inline {
-  background: none;
-  border: none;
-  padding: 0;
-  margin: 0;
-  display: inline;
-  font: inherit;
-  font-weight: 700;
-  color: var(--teal-700);
-  text-decoration: underline;
-  cursor: pointer;
-}
-
-.link-inline:hover {
-  color: var(--teal-900);
-}
-
-/* ===================== Personnalisation ===================== */
-.checkbox-list {
-  display: grid;
-  gap: 10px;
-  margin-bottom: 14px;
-}
-
-.checkbox-option,
-.radio-option {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border: 1px solid #d1d5db;
-  border-radius: 12px;
-  background: white;
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.checkbox-option input,
-.radio-option input {
-  width: auto;
-  margin: 0;
-}
-
-.time-row {
-  display: grid;
-  grid-template-columns: 1fr 90px;
-  gap: 10px;
-  align-items: center;
-}
-
-.time-row label {
-  font-weight: 500;
-}
-
-.time-row input {
-  text-align: center;
-}
+  <script src="script.js"></script>
+</body>
+</html>
