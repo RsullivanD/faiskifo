@@ -11,12 +11,10 @@ let catalogTasks = [];
 let userTaskPreferences = [];
 let taskHistory = [];
 
-let current = null;
+let current = null; // { taskId, categoryId, subcategoryId, scopeCategoryId, scopeSubcategoryId, plannedSeconds, remainingSeconds, running, started }
 let timerInterval = null;
 
 /* ============ Helpers ============ */
-function now() { return new Date(); }
-
 function normalizeId(v) {
   return v === null || v === undefined ? "" : String(v);
 }
@@ -44,10 +42,6 @@ function clearSelect(select, placeholder) {
   select.appendChild(opt);
 }
 
-function formatDate(ts) {
-  return new Date(ts).toLocaleString("fr-CA");
-}
-
 function formatDateShort(ts) {
   return new Date(ts).toLocaleDateString("fr-CA", { day: "numeric", month: "long" });
 }
@@ -67,29 +61,36 @@ function pick(arr) {
 
 /* ============ UI refs ============ */
 const els = {
-  authLoggedOut: document.getElementById("auth-logged-out"),
+  auth: document.getElementById("auth"),
   authEmailOtp: document.getElementById("auth-email-otp"),
   authSendBtn: document.getElementById("auth-send-btn"),
   authOtpStatus: document.getElementById("auth-otp-status"),
   authUserEmail: document.getElementById("auth-user-email"),
   authLogoutBtn: document.getElementById("auth-logout-btn"),
 
-  auth: document.getElementById("auth"),
   appContent: document.getElementById("app-content"),
   tabFocusBtn: document.getElementById("tab-focus-btn"),
   tabHistoryBtn: document.getElementById("tab-history-btn"),
 
   focusView: document.getElementById("focus-view"),
   historyView: document.getElementById("history-view"),
+  motivationalPersonalizeLink: document.getElementById("motivational-personalize-link"),
 
+  selectorView: document.getElementById("selector-view"),
   categorySelect: document.getElementById("category-select"),
-  taskSelect: document.getElementById("task-select"),
   stepSelect: document.getElementById("step-select"), // = pièce
-  timerMinutes: document.getElementById("timer-minutes"),
   startSessionBtn: document.getElementById("start-session-btn"),
 
   currentCard: document.getElementById("current-step"),
   currentText: document.getElementById("current-step-text"),
+
+  pickTimeView: document.getElementById("pick-time-view"),
+  pickTimerMinutes: document.getElementById("pick-timer-minutes"),
+  confirmStartTimerBtn: document.getElementById("confirm-start-timer-btn"),
+  skipTaskBeforeBtn: document.getElementById("skip-task-before-btn"),
+  cancelPickBtn: document.getElementById("cancel-pick-btn"),
+
+  timerRunningView: document.getElementById("timer-running-view"),
   timerDisplay: document.getElementById("timer"),
   pauseTimerBtn: document.getElementById("pause-timer-btn"),
   resumeTimerBtn: document.getElementById("resume-timer-btn"),
@@ -218,6 +219,7 @@ async function loadAllData() {
   taskHistory = histRes.data || [];
 
   renderCategoryOptions();
+  renderStepOptions();
   renderHistory();
   renderCurrent();
   populatePersonalizeCategorySelect();
@@ -241,7 +243,7 @@ function getPinnedTaskIds() {
   );
 }
 
-// Sous-catégories "actives" (pièces) pour une catégorie donnée : celles qui contiennent au moins une tâche épinglée.
+// Pièces "actives" pour une catégorie donnée : celles qui contiennent au moins une tâche épinglée.
 function getActiveSubcategoryIds(categoryId) {
   const pinned = getPinnedTaskIds();
   const ids = new Set();
@@ -251,6 +253,19 @@ function getActiveSubcategoryIds(categoryId) {
     }
   });
   return ids;
+}
+
+// Noms de pièces "actives" toutes catégories confondues (utilisé quand aucun type de ménage n'est choisi).
+function getActivePieceNamesGlobal() {
+  const pinned = getPinnedTaskIds();
+  const names = new Set();
+  catalogTasks.forEach(t => {
+    if (pinned.has(normalizeId(t.id))) {
+      const subcat = catalogSubcategories.find(s => normalizeId(s.id) === normalizeId(t.subcategory_id));
+      if (subcat) names.add(subcat.name);
+    }
+  });
+  return names;
 }
 
 function getPrefillMinutes(taskId, fallbackMinutes) {
@@ -265,40 +280,77 @@ function getPrefillMinutes(taskId, fallbackMinutes) {
   return fallbackMinutes;
 }
 
-/* ============ Render : sélecteurs de session ============ */
+// Construit le bassin de tâches possibles selon les filtres optionnels (catégorie / pièce),
+// puis restreint aux tâches personnalisées (pinned) si l'utilisateur en a défini pour ce bassin.
+function buildTaskPool(categoryId, subcategoryId) {
+  let tasks = catalogTasks.slice();
+
+  if (categoryId) {
+    tasks = tasks.filter(t => normalizeId(t.category_id) === normalizeId(categoryId));
+  }
+
+  if (subcategoryId) {
+    if (categoryId) {
+      tasks = tasks.filter(t => normalizeId(t.subcategory_id) === normalizeId(subcategoryId));
+    } else {
+      // Aucune catégorie choisie : la pièce est identifiée par son nom (les ids diffèrent par catégorie)
+      const subcat = catalogSubcategories.find(s => normalizeId(s.id) === normalizeId(subcategoryId));
+      if (subcat) {
+        const matchingIds = new Set(
+          catalogSubcategories.filter(s => s.name === subcat.name).map(s => normalizeId(s.id))
+        );
+        tasks = tasks.filter(t => matchingIds.has(normalizeId(t.subcategory_id)));
+      }
+    }
+  }
+
+  const pinned = getPinnedTaskIds();
+  const pinnedSubset = tasks.filter(t => pinned.has(normalizeId(t.id)));
+  if (pinnedSubset.length > 0) {
+    tasks = pinnedSubset;
+  }
+
+  return tasks;
+}
+
+/* ============ Render : sélecteurs (facultatifs) ============ */
 function renderCategoryOptions() {
-  clearSelect(els.categorySelect, "Choisis un type de ménage");
+  clearSelect(els.categorySelect, "Peu importe");
   catalogCategories.forEach(cat => {
     const opt = document.createElement("option");
     opt.value = normalizeId(cat.id);
     opt.textContent = (cat.icon ? cat.icon + " " : "") + cat.name;
     els.categorySelect.appendChild(opt);
   });
-
-  clearSelect(els.stepSelect, "Choisis une pièce");
-  els.stepSelect.disabled = true;
-
-  clearSelect(els.taskSelect, "Choisis une tâche");
-  els.taskSelect.disabled = true;
 }
 
-// Étape 1 : type de ménage choisi -> peupler les pièces (priorité aux pièces personnalisées)
+// Peuple la liste des pièces, avec ou sans catégorie choisie (tout est facultatif et indépendant)
 function renderStepOptions() {
   const catId = els.categorySelect.value;
-  clearSelect(els.stepSelect, "Choisis une pièce");
-  clearSelect(els.taskSelect, "Choisis une tâche");
-  els.taskSelect.disabled = true;
+  const previousValue = els.stepSelect.value;
+  clearSelect(els.stepSelect, "Peu importe");
 
-  if (!catId) {
-    els.stepSelect.disabled = true;
-    return;
-  }
-
-  let subcats = catalogSubcategories.filter(s => normalizeId(s.category_id) === normalizeId(catId));
-
-  const activeIds = getActiveSubcategoryIds(catId);
-  if (activeIds.size > 0) {
-    subcats = subcats.filter(s => activeIds.has(normalizeId(s.id)));
+  let subcats;
+  if (catId) {
+    subcats = catalogSubcategories.filter(s => normalizeId(s.category_id) === normalizeId(catId));
+    const activeIds = getActiveSubcategoryIds(catId);
+    if (activeIds.size > 0) {
+      subcats = subcats.filter(s => activeIds.has(normalizeId(s.id)));
+    }
+  } else {
+    // Dédoublonne par nom de pièce à travers toutes les catégories
+    const seen = new Set();
+    subcats = [];
+    catalogSubcategories.forEach(s => {
+      if (!seen.has(s.name)) {
+        seen.add(s.name);
+        subcats.push(s);
+      }
+    });
+    const activeNames = getActivePieceNamesGlobal();
+    if (activeNames.size > 0) {
+      subcats = subcats.filter(s => activeNames.has(s.name));
+    }
   }
 
   subcats.forEach(subcat => {
@@ -308,47 +360,9 @@ function renderStepOptions() {
     els.stepSelect.appendChild(opt);
   });
 
-  els.stepSelect.disabled = subcats.length === 0;
-}
-
-// Étape 2 : pièce choisie -> peupler les tâches (priorité aux tâches personnalisées)
-function renderTaskOptions() {
-  const catId = els.categorySelect.value;
-  const subcatId = els.stepSelect.value;
-  clearSelect(els.taskSelect, "Choisis une tâche");
-
-  if (!catId || !subcatId) {
-    els.taskSelect.disabled = true;
-    return;
-  }
-
-  let tasks = catalogTasks.filter(t =>
-    normalizeId(t.category_id) === normalizeId(catId) &&
-    normalizeId(t.subcategory_id) === normalizeId(subcatId)
-  );
-
-  const pinned = getPinnedTaskIds();
-  const pinnedInRoom = tasks.filter(t => pinned.has(normalizeId(t.id)));
-  if (pinnedInRoom.length > 0) {
-    tasks = pinnedInRoom;
-  }
-
-  tasks.forEach(task => {
-    const opt = document.createElement("option");
-    opt.value = normalizeId(task.id);
-    opt.textContent = task.name;
-    els.taskSelect.appendChild(opt);
-  });
-
-  els.taskSelect.disabled = tasks.length === 0;
-}
-
-function applyPrefillForSelectedTask() {
-  const taskId = els.taskSelect.value;
-  if (!taskId) return;
-  const task = catalogTasks.find(t => normalizeId(t.id) === normalizeId(taskId));
-  if (!task) return;
-  els.timerMinutes.value = getPrefillMinutes(taskId, task.duration_minutes || 10);
+  // Conserve la sélection précédente si elle existe encore dans la nouvelle liste
+  const stillValid = Array.from(els.stepSelect.options).some(o => o.value === previousValue);
+  els.stepSelect.value = stillValid ? previousValue : "";
 }
 
 /* ============ Render : historique ============ */
@@ -377,22 +391,31 @@ function renderHistory() {
   });
 }
 
-/* ============ Render : session en cours ============ */
+/* ============ Render : tâche piochée / session ============ */
 function renderCurrent() {
   if (!current) {
     setVisible(els.currentCard, false);
-    setVisible(document.getElementById("selector-view"), true);
+    setVisible(els.selectorView, true);
     return;
   }
 
+  setVisible(els.selectorView, false);
   setVisible(els.currentCard, true);
-  setVisible(document.getElementById("selector-view"), false);
 
   const cat = catalogCategories.find(c => normalizeId(c.id) === normalizeId(current.categoryId));
   const task = catalogTasks.find(t => normalizeId(t.id) === normalizeId(current.taskId));
   const subcat = catalogSubcategories.find(s => normalizeId(s.id) === normalizeId(current.subcategoryId));
 
   els.currentText.textContent = `${cat?.name || ""} — ${subcat?.name || ""} — ${task?.name || ""}`.replace(/ — $/, "").replace(/^ — /, "");
+
+  if (!current.started) {
+    setVisible(els.pickTimeView, true);
+    setVisible(els.timerRunningView, false);
+    return;
+  }
+
+  setVisible(els.pickTimeView, false);
+  setVisible(els.timerRunningView, true);
 
   const mm = Math.floor(current.remainingSeconds / 60);
   const ss = current.remainingSeconds % 60;
@@ -422,74 +445,110 @@ function showPersonalizePanel() {
   resetPersonalizeWizard();
 }
 
-/* ============ Session ============ */
-function startSession() {
-  const categoryId = els.categorySelect.value;
-  const subcategoryId = els.stepSelect.value;
-  const taskId = els.taskSelect.value;
-  const minutes = parseInt(els.timerMinutes.value, 10);
+/* ============ Faiskifo pige une tâche ============ */
+function drawTask(excludeTaskId) {
+  const categoryId = els.categorySelect.value || "";
+  const subcategoryId = els.stepSelect.value || "";
 
-  if (!categoryId || !subcategoryId || !taskId) {
-    toast("Choisis un type de ménage, une pièce et une tâche.", "error");
-    return;
-  }
-  if (!minutes || minutes <= 0) {
-    toast("Indique un temps valide.", "error");
-    return;
+  let pool = buildTaskPool(categoryId, subcategoryId);
+  if (excludeTaskId) {
+    const withoutCurrent = pool.filter(t => normalizeId(t.id) !== normalizeId(excludeTaskId));
+    if (withoutCurrent.length > 0) pool = withoutCurrent;
   }
 
-  current = {
-    categoryId,
-    subcategoryId,
-    taskId,
-    plannedSeconds: minutes * 60,
-    remainingSeconds: minutes * 60,
-    running: false
+  if (pool.length === 0) {
+    toast("Aucune tâche disponible avec ces critères. Essaie d'élargir tes choix.", "error");
+    return null;
+  }
+
+  const task = pick(pool);
+
+  return {
+    taskId: normalizeId(task.id),
+    categoryId: normalizeId(task.category_id),
+    subcategoryId: normalizeId(task.subcategory_id),
+    scopeCategoryId: categoryId,
+    scopeSubcategoryId: subcategoryId,
+    plannedSeconds: 0,
+    remainingSeconds: 0,
+    running: false,
+    started: false
   };
+}
+
+function pickTask() {
+  const drawn = drawTask(null);
+  if (!drawn) return;
+
+  current = drawn;
+  const task = catalogTasks.find(t => normalizeId(t.id) === current.taskId);
+  els.pickTimerMinutes.value = "";
+  els.pickTimerMinutes.placeholder = "Laisse vide (≈ " + getPrefillMinutes(current.taskId, task?.duration_minutes || 10) + " min)";
+
+  renderCurrent();
+}
+
+function cancelPick() {
+  current = null;
+  renderCurrent();
+}
+
+function confirmStartTimer() {
+  if (!current) return;
+
+  const task = catalogTasks.find(t => normalizeId(t.id) === current.taskId);
+  const raw = els.pickTimerMinutes.value.trim();
+  const parsed = raw ? parseInt(raw, 10) : NaN;
+  const minutes = (parsed && parsed > 0) ? parsed : getPrefillMinutes(current.taskId, task?.duration_minutes || 10);
+
+  current.plannedSeconds = minutes * 60;
+  current.remainingSeconds = minutes * 60;
+  current.started = true;
 
   renderCurrent();
   startTimer();
 }
 
-// Passer cette tâche : reste dans la même pièce, en pige une autre au hasard, ne compte pas dans l'historique
+// Passer cette tâche (avant ou pendant le minuteur) : en pige une autre selon les mêmes filtres, sans compter dans l'historique
 function skipTask() {
   if (!current) return;
 
-  let tasks = catalogTasks.filter(t =>
-    normalizeId(t.category_id) === normalizeId(current.categoryId) &&
-    normalizeId(t.subcategory_id) === normalizeId(current.subcategoryId)
-  );
+  const wasStarted = current.started;
+  const excludeId = current.taskId;
 
-  const pinned = getPinnedTaskIds();
-  const pinnedInRoom = tasks.filter(t => pinned.has(normalizeId(t.id)));
-  if (pinnedInRoom.length > 0) {
-    tasks = pinnedInRoom;
-  }
+  // Restaure temporairement les sélecteurs sur le scope d'origine pour repiger dans le même bassin
+  const savedCat = els.categorySelect.value;
+  const savedStep = els.stepSelect.value;
+  els.categorySelect.value = current.scopeCategoryId || "";
+  els.stepSelect.value = current.scopeSubcategoryId || "";
 
-  const otherTasks = tasks.filter(t => normalizeId(t.id) !== normalizeId(current.taskId));
-  const nextTask = otherTasks.length > 0 ? pick(otherTasks) : tasks.find(t => normalizeId(t.id) === normalizeId(current.taskId));
+  const drawn = drawTask(excludeId);
 
-  if (!nextTask) {
-    toast("Aucune autre tâche disponible dans cette pièce.", "error");
-    return;
-  }
+  els.categorySelect.value = savedCat;
+  els.stepSelect.value = savedStep;
+
+  if (!drawn) return;
 
   stopTimer();
+  current = drawn;
 
-  const minutes = getPrefillMinutes(nextTask.id, nextTask.duration_minutes || 10);
+  if (wasStarted) {
+    // Redémarre directement le minuteur avec le temps recalculé pour la nouvelle tâche
+    const task = catalogTasks.find(t => normalizeId(t.id) === current.taskId);
+    const minutes = getPrefillMinutes(current.taskId, task?.duration_minutes || 10);
+    current.plannedSeconds = minutes * 60;
+    current.remainingSeconds = minutes * 60;
+    current.started = true;
+    renderCurrent();
+    startTimer();
+  } else {
+    const task = catalogTasks.find(t => normalizeId(t.id) === current.taskId);
+    els.pickTimerMinutes.value = "";
+    els.pickTimerMinutes.placeholder = "Laisse vide (≈ " + getPrefillMinutes(current.taskId, task?.duration_minutes || 10) + " min)";
+    renderCurrent();
+  }
 
-  current = {
-    categoryId: current.categoryId,
-    subcategoryId: current.subcategoryId,
-    taskId: normalizeId(nextTask.id),
-    plannedSeconds: minutes * 60,
-    remainingSeconds: minutes * 60,
-    running: false
-  };
-
-  renderCurrent();
-  startTimer();
-  toast("Nouvelle tâche : " + nextTask.name, "info");
+  toast("Nouvelle tâche piochée!", "info");
 }
 
 /* ============ Timer ============ */
@@ -554,10 +613,6 @@ async function recordCompletion(durationSeconds) {
   current = null;
   renderCurrent();
   renderHistory();
-
-  // Réinitialise les sélecteurs pour une prochaine session
-  els.categorySelect.value = "";
-  renderStepOptions();
 }
 
 function markDone() {
@@ -817,7 +872,7 @@ async function savePersonalization(timesMap) {
   return true;
 }
 
-// Étape finale : retour à "Je me lance!" avec les listes rafraîchies
+// Étape finale : retour à "Je me lance!" avec les filtres rafraîchis
 function pzLaunch() {
   showTab("focus");
   els.categorySelect.value = pz.categoryId || "";
@@ -831,11 +886,18 @@ els.authLogoutBtn?.addEventListener("click", logout);
 els.tabFocusBtn?.addEventListener("click", () => showTab("focus"));
 els.tabHistoryBtn?.addEventListener("click", () => showTab("history"));
 
-els.categorySelect?.addEventListener("change", renderStepOptions);
-els.stepSelect?.addEventListener("change", renderTaskOptions);
-els.taskSelect?.addEventListener("change", applyPrefillForSelectedTask);
+els.motivationalPersonalizeLink?.addEventListener("click", () => {
+  showTab("history");
+  showPersonalizePanel();
+});
 
-els.startSessionBtn?.addEventListener("click", startSession);
+els.categorySelect?.addEventListener("change", renderStepOptions);
+
+els.startSessionBtn?.addEventListener("click", pickTask);
+els.confirmStartTimerBtn?.addEventListener("click", confirmStartTimer);
+els.skipTaskBeforeBtn?.addEventListener("click", skipTask);
+els.cancelPickBtn?.addEventListener("click", cancelPick);
+
 els.pauseTimerBtn?.addEventListener("click", stopTimer);
 els.resumeTimerBtn?.addEventListener("click", startTimer);
 els.skipTaskBtn?.addEventListener("click", skipTask);
