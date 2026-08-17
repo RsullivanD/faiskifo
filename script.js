@@ -59,6 +59,34 @@ function pick(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// Enlève les accents et les majuscules pour comparer des noms de pièces sans se soucier de l'orthographe exacte
+function normalizeName(s) {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+// La pièce "Général, toutes les pièces" : ses tâches doivent aussi apparaître dans les autres pièces
+function isGeneralAllRoomsSubcategory(name) {
+  const n = normalizeName(name);
+  return n.includes("general") && n.includes("toutes les pieces");
+}
+
+// Pièces qui NE doivent PAS hériter des tâches "Général, toutes les pièces"
+function isExcludedFromGeneralInjection(name) {
+  const n = normalizeName(name);
+  return (n.includes("cour") && n.includes("balcon")) || n.includes("voiture");
+}
+
+// Ids de toutes les sous-catégories portant ce nom (facultativement restreint à une catégorie)
+function subcategoryIdsByName(name, categoryId) {
+  return catalogSubcategories
+    .filter(s => s.name === name && (!categoryId || normalizeId(s.category_id) === normalizeId(categoryId)))
+    .map(s => normalizeId(s.id));
+}
+
 /* ============ UI refs ============ */
 const els = {
   auth: document.getElementById("auth"),
@@ -290,18 +318,26 @@ function buildTaskPool(categoryId, subcategoryId) {
   }
 
   if (subcategoryId) {
+    const subcat = catalogSubcategories.find(s => normalizeId(s.id) === normalizeId(subcategoryId));
+    const subcatName = subcat ? subcat.name : null;
+
+    let matchingIds;
     if (categoryId) {
-      tasks = tasks.filter(t => normalizeId(t.subcategory_id) === normalizeId(subcategoryId));
+      matchingIds = new Set([normalizeId(subcategoryId)]);
     } else {
       // Aucune catégorie choisie : la pièce est identifiée par son nom (les ids diffèrent par catégorie)
-      const subcat = catalogSubcategories.find(s => normalizeId(s.id) === normalizeId(subcategoryId));
-      if (subcat) {
-        const matchingIds = new Set(
-          catalogSubcategories.filter(s => s.name === subcat.name).map(s => normalizeId(s.id))
-        );
-        tasks = tasks.filter(t => matchingIds.has(normalizeId(t.subcategory_id)));
-      }
+      matchingIds = new Set(subcatName ? subcategoryIdsByName(subcatName, null) : []);
     }
+
+    // Les tâches "Général, toutes les pièces" doivent aussi apparaître dans les autres pièces,
+    // sauf "Cour et balcon" et "Voiture" (et sauf si on est déjà sur "Général" lui-même).
+    if (subcatName && !isGeneralAllRoomsSubcategory(subcatName) && !isExcludedFromGeneralInjection(subcatName)) {
+      catalogSubcategories
+        .filter(s => isGeneralAllRoomsSubcategory(s.name) && (!categoryId || normalizeId(s.category_id) === normalizeId(categoryId)))
+        .forEach(s => matchingIds.add(normalizeId(s.id)));
+    }
+
+    tasks = tasks.filter(t => matchingIds.has(normalizeId(t.subcategory_id)));
   }
 
   const pinned = getPinnedTaskIds();
