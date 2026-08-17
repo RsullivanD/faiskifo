@@ -380,7 +380,7 @@ function renderHistory() {
     const div = document.createElement("div");
     div.className = "history-item";
 
-    let line = `Le ${formatDateShort(item.completed_at)} tu as ${lowerFirst(task?.name || "fait une tâche")} en ${item.duration_minutes || 0} minutes`;
+    let line = `Le ${formatDateShort(item.completed_at)} tu as fait la tâche suivante : ${task?.name || "tâche"} en ${item.duration_minutes || 0} minutes`;
     if (item.note) {
       line += ` et tu as noté : ${item.note}`;
     }
