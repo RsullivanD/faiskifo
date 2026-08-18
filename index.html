@@ -133,11 +133,7 @@
           <div id="pz-step-category" class="pz-step">
             <h3>Personnalise ton expérience</h3>
             <p class="field-hint">Pour quel type de ménage veux-tu personnaliser tes pièces?</p>
-            <div class="stack">
-              <select id="pz-category-select">
-                <option value="">Choisis un type de ménage</option>
-              </select>
-            </div>
+            <div id="pz-category-buttons" class="category-buttons"></div>
             <div class="row">
               <button id="pz-start-btn" class="btn-primary" type="button">Suivant</button>
             </div>
@@ -145,8 +141,8 @@
 
           <div id="pz-step-rooms" class="pz-step hidden">
             <h3>Mes pièces</h3>
-            <p class="field-hint">Coche les pièces où tu dois parfois faire du ménage, puis appuie sur Suivant.</p>
-            <div id="pz-rooms-list" class="checkbox-list"></div>
+            <p class="field-hint">Touche les pièces où tu dois parfois faire du ménage, puis appuie sur Suivant.</p>
+            <div id="pz-rooms-list" class="subcategory-grid"></div>
             <div class="row">
               <button id="pz-rooms-back-btn" class="btn-secondary" type="button">Retour</button>
               <button id="pz-rooms-next-btn" class="btn-primary" type="button">Suivant</button>
@@ -155,8 +151,8 @@
 
           <div id="pz-step-tasks" class="pz-step hidden">
             <h3 id="pz-current-room-title"></h3>
-            <p class="field-hint">Coche les tâches possibles pour cette pièce.</p>
-            <div id="pz-tasks-list" class="checkbox-list"></div>
+            <p class="field-hint">Touche les tâches possibles pour cette pièce.</p>
+            <div id="pz-tasks-list" class="choice-chip-list"></div>
             <div class="row">
               <button id="pz-tasks-back-btn" class="btn-secondary" type="button">Retour</button>
               <button id="pz-tasks-next-btn" class="btn-primary" type="button">Suivant</button>
