@@ -158,7 +158,7 @@ const els = {
 
   // Wizard "Personnalise ton expérience"
   pzStepCategory: document.getElementById("pz-step-category"),
-  pzCategorySelect: document.getElementById("pz-category-select"),
+  pzCategoryButtons: document.getElementById("pz-category-buttons"),
   pzStartBtn: document.getElementById("pz-start-btn"),
 
   pzStepRooms: document.getElementById("pz-step-rooms"),
@@ -275,7 +275,7 @@ async function loadAllData() {
   renderStepOptions();
   renderHistory();
   renderCurrent();
-  populatePersonalizeCategorySelect();
+  renderPzCategoryButtons();
 }
 
 async function reloadPreferences() {
@@ -778,19 +778,26 @@ let pz = {
   timingMode: null
 };
 
-function populatePersonalizeCategorySelect() {
-  clearSelect(els.pzCategorySelect, "Choisis un type de ménage");
+function renderPzCategoryButtons() {
+  if (!els.pzCategoryButtons) return;
+  els.pzCategoryButtons.innerHTML = "";
   catalogCategories.forEach(cat => {
-    const opt = document.createElement("option");
-    opt.value = normalizeId(cat.id);
-    opt.textContent = (cat.icon ? cat.icon + " " : "") + cat.name;
-    els.pzCategorySelect.appendChild(opt);
+    const id = normalizeId(cat.id);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "category-btn" + (pz.categoryId === id ? " selected" : "");
+    btn.textContent = (cat.icon ? cat.icon + " " : "") + cat.name;
+    btn.addEventListener("click", () => {
+      pz.categoryId = id;
+      renderPzCategoryButtons();
+    });
+    els.pzCategoryButtons.appendChild(btn);
   });
 }
 
 function resetPersonalizeWizard() {
   pz = { categoryId: null, roomIds: [], roomIndex: 0, taskSelections: {}, timingMode: null };
-  els.pzCategorySelect.value = "";
+  renderPzCategoryButtons();
   showPzStep("category");
 }
 
@@ -804,12 +811,11 @@ function showPzStep(step) {
 
 // Étape 1 -> 2 : choisir le type de ménage, afficher les pièces
 function pzGoToRooms() {
-  const catId = els.pzCategorySelect.value;
+  const catId = pz.categoryId;
   if (!catId) {
     toast("Choisis un type de ménage.", "error");
     return;
   }
-  pz.categoryId = catId;
 
   const subcats = catalogSubcategories.filter(s => normalizeId(s.category_id) === normalizeId(catId));
   const pinned = getPinnedTaskIds();
@@ -822,10 +828,13 @@ function pzGoToRooms() {
       pinned.has(normalizeId(t.id))
     );
 
-    const label = document.createElement("label");
-    label.className = "checkbox-option";
-    label.innerHTML = `<input type="checkbox" value="${normalizeId(subcat.id)}" ${hasPinnedTask ? "checked" : ""} /> ${subcat.name}`;
-    els.pzRoomsList.appendChild(label);
+    const card = document.createElement("button");
+    card.type = "button";
+    card.dataset.value = normalizeId(subcat.id);
+    card.className = "subcategory-card" + (hasPinnedTask ? " selected" : "");
+    card.innerHTML = `<span class="icon">${getSubcategoryIcon(subcat.name)}</span><span>${subcat.name}</span>`;
+    card.addEventListener("click", () => card.classList.toggle("selected"));
+    els.pzRoomsList.appendChild(card);
   });
 
   showPzStep("rooms");
@@ -833,9 +842,9 @@ function pzGoToRooms() {
 
 // Étape 2 -> 3 : pièces cochées, commencer la boucle des tâches
 function pzGoToTasks() {
-  const checked = Array.from(els.pzRoomsList.querySelectorAll("input[type=checkbox]:checked")).map(i => i.value);
+  const checked = Array.from(els.pzRoomsList.querySelectorAll(".subcategory-card.selected")).map(c => c.dataset.value);
   if (checked.length === 0) {
-    toast("Coche au moins une pièce.", "error");
+    toast("Touche au moins une pièce.", "error");
     return;
   }
   pz.roomIds = checked;
@@ -858,11 +867,14 @@ function pzRenderTasksStepForCurrentRoom() {
 
   els.pzTasksList.innerHTML = "";
   tasks.forEach(task => {
-    const checked = alreadySelected.has(normalizeId(task.id));
-    const label = document.createElement("label");
-    label.className = "checkbox-option";
-    label.innerHTML = `<input type="checkbox" value="${normalizeId(task.id)}" ${checked ? "checked" : ""} /> ${task.name}`;
-    els.pzTasksList.appendChild(label);
+    const selected = alreadySelected.has(normalizeId(task.id));
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.dataset.value = normalizeId(task.id);
+    chip.className = "choice-chip" + (selected ? " selected" : "");
+    chip.textContent = task.name;
+    chip.addEventListener("click", () => chip.classList.toggle("selected"));
+    els.pzTasksList.appendChild(chip);
   });
 
   els.pzTasksBackBtn.textContent = pz.roomIndex === 0 ? "Retour" : "Pièce précédente";
@@ -878,7 +890,7 @@ function getPreselectedTasksForRoom(subcatId) {
 
 function pzSaveCurrentRoomSelections() {
   const subcatId = pz.roomIds[pz.roomIndex];
-  const checked = Array.from(els.pzTasksList.querySelectorAll("input[type=checkbox]:checked")).map(i => normalizeId(i.value));
+  const checked = Array.from(els.pzTasksList.querySelectorAll(".choice-chip.selected")).map(c => normalizeId(c.dataset.value));
   pz.taskSelections[subcatId] = new Set(checked);
 }
 
