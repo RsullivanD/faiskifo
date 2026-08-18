@@ -334,3 +334,62 @@ label {
 .time-row input {
   text-align: center;
 }
+
+/* ===================== Sélecteurs : boutons et cartes ===================== */
+.category-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.category-btn {
+  background: #e5e7eb;
+  color: #111827;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 10px 18px;
+}
+
+.category-btn.selected {
+  background: var(--teal-700);
+  color: white;
+}
+
+.subcategory-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.subcategory-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 6px;
+  border-radius: 16px;
+  border: 2px solid #e5e7eb;
+  background: white;
+  font-weight: 600;
+  font-size: 0.82rem;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.subcategory-card .icon {
+  font-size: 1.5rem;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--mint-100);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.subcategory-card.selected {
+  border-color: var(--teal-500);
+  background: var(--mint-100);
+}
