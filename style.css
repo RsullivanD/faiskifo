@@ -393,3 +393,26 @@ label {
   border-color: var(--teal-500);
   background: var(--mint-100);
 }
+
+.choice-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.choice-chip {
+  background: white;
+  color: #111827;
+  font-weight: 500;
+  border: 2px solid #d1d5db;
+  border-radius: 999px;
+  padding: 10px 16px;
+}
+
+.choice-chip.selected {
+  background: var(--teal-500);
+  color: white;
+  border-color: var(--teal-500);
+  font-weight: 700;
+}
