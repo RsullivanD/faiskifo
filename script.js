@@ -14,6 +14,9 @@ let taskHistory = [];
 let current = null; // { taskId, categoryId, subcategoryId, scopeCategoryId, scopeSubcategoryId, plannedSeconds, remainingSeconds, running, started }
 let timerInterval = null;
 
+let selectedCategoryId = "";
+let selectedSubcategoryId = "";
+
 /* ============ Helpers ============ */
 function normalizeId(v) {
   return v === null || v === undefined ? "" : String(v);
@@ -87,6 +90,24 @@ function subcategoryIdsByName(name, categoryId) {
     .map(s => normalizeId(s.id));
 }
 
+// Choisit un emoji représentatif pour une pièce, selon son nom (approximatif, aucune donnée d'icône en base)
+function getSubcategoryIcon(name) {
+  if (isGeneralAllRoomsSubcategory(name)) return "🏠";
+  const n = normalizeName(name);
+  if (n.includes("cuisine")) return "🍽️";
+  if (n.includes("salon") || n.includes("sejour")) return "🛋️";
+  if (n.includes("chambre")) return "🛏️";
+  if (n.includes("salle de bain") || n.includes("toilette") || n.includes("sdb")) return "🚿";
+  if (n.includes("bureau")) return "🖥️";
+  if (n.includes("entree") || n.includes("hall") || n.includes("vestibule")) return "🚪";
+  if (n.includes("buanderie") || n.includes("lessive")) return "🧺";
+  if (n.includes("sous-sol") || n.includes("sous sol")) return "📦";
+  if (n.includes("cour") || n.includes("balcon") || n.includes("jardin")) return "🌳";
+  if (n.includes("voiture") || n.includes("auto")) return "🚗";
+  if (n.includes("salle a manger")) return "🍴";
+  return "🧹";
+}
+
 /* ============ UI refs ============ */
 const els = {
   auth: document.getElementById("auth"),
@@ -105,8 +126,8 @@ const els = {
   motivationalPersonalizeLink: document.getElementById("motivational-personalize-link"),
 
   selectorView: document.getElementById("selector-view"),
-  categorySelect: document.getElementById("category-select"),
-  stepSelect: document.getElementById("step-select"), // = pièce
+  categoryButtons: document.getElementById("category-buttons"),
+  stepCards: document.getElementById("step-cards"),
   startSessionBtn: document.getElementById("start-session-btn"),
 
   currentCard: document.getElementById("current-step"),
@@ -355,20 +376,37 @@ function buildTaskPool(categoryId, subcategoryId) {
 
 /* ============ Render : sélecteurs (facultatifs) ============ */
 function renderCategoryOptions() {
-  clearSelect(els.categorySelect, "Peu importe");
+  if (!els.categoryButtons) return;
+  els.categoryButtons.innerHTML = "";
+
+  const allBtn = document.createElement("button");
+  allBtn.type = "button";
+  allBtn.className = "category-btn" + (selectedCategoryId === "" ? " selected" : "");
+  allBtn.textContent = "Peu importe";
+  allBtn.addEventListener("click", () => selectCategory(""));
+  els.categoryButtons.appendChild(allBtn);
+
   catalogCategories.forEach(cat => {
-    const opt = document.createElement("option");
-    opt.value = normalizeId(cat.id);
-    opt.textContent = (cat.icon ? cat.icon + " " : "") + cat.name;
-    els.categorySelect.appendChild(opt);
+    const id = normalizeId(cat.id);
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "category-btn" + (selectedCategoryId === id ? " selected" : "");
+    btn.textContent = (cat.icon ? cat.icon + " " : "") + cat.name;
+    btn.addEventListener("click", () => selectCategory(id));
+    els.categoryButtons.appendChild(btn);
   });
+}
+
+function selectCategory(categoryId) {
+  selectedCategoryId = categoryId;
+  renderCategoryOptions();
+  renderStepOptions();
 }
 
 // Peuple la liste des pièces, avec ou sans catégorie choisie (tout est facultatif et indépendant)
 function renderStepOptions() {
-  const catId = els.categorySelect.value;
-  const previousValue = els.stepSelect.value;
-  clearSelect(els.stepSelect, "Peu importe");
+  const catId = selectedCategoryId;
+  const previousValue = selectedSubcategoryId;
 
   let subcats;
   if (catId) {
@@ -393,16 +431,34 @@ function renderStepOptions() {
     }
   }
 
-  subcats.forEach(subcat => {
-    const opt = document.createElement("option");
-    opt.value = normalizeId(subcat.id);
-    opt.textContent = subcat.name;
-    els.stepSelect.appendChild(opt);
-  });
-
   // Conserve la sélection précédente si elle existe encore dans la nouvelle liste
-  const stillValid = Array.from(els.stepSelect.options).some(o => o.value === previousValue);
-  els.stepSelect.value = stillValid ? previousValue : "";
+  const stillValid = subcats.some(s => normalizeId(s.id) === previousValue);
+  selectedSubcategoryId = stillValid ? previousValue : "";
+
+  if (!els.stepCards) return;
+  els.stepCards.innerHTML = "";
+
+  const allCard = document.createElement("button");
+  allCard.type = "button";
+  allCard.className = "subcategory-card" + (selectedSubcategoryId === "" ? " selected" : "");
+  allCard.innerHTML = `<span class="icon">🤷</span><span>Peu importe</span>`;
+  allCard.addEventListener("click", () => selectSubcategory(""));
+  els.stepCards.appendChild(allCard);
+
+  subcats.forEach(subcat => {
+    const id = normalizeId(subcat.id);
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "subcategory-card" + (selectedSubcategoryId === id ? " selected" : "");
+    card.innerHTML = `<span class="icon">${getSubcategoryIcon(subcat.name)}</span><span>${subcat.name}</span>`;
+    card.addEventListener("click", () => selectSubcategory(id));
+    els.stepCards.appendChild(card);
+  });
+}
+
+function selectSubcategory(subcategoryId) {
+  selectedSubcategoryId = subcategoryId;
+  renderStepOptions();
 }
 
 /* ============ Render : historique ============ */
@@ -536,8 +592,8 @@ async function resetHistoryData() {
 
 /* ============ Faiskifo pige une tâche ============ */
 function drawTask(excludeTaskId) {
-  const categoryId = els.categorySelect.value || "";
-  const subcategoryId = els.stepSelect.value || "";
+  const categoryId = selectedCategoryId || "";
+  const subcategoryId = selectedSubcategoryId || "";
 
   let pool = buildTaskPool(categoryId, subcategoryId);
   if (excludeTaskId) {
@@ -605,16 +661,16 @@ function skipTask() {
   const wasStarted = current.started;
   const excludeId = current.taskId;
 
-  // Restaure temporairement les sélecteurs sur le scope d'origine pour repiger dans le même bassin
-  const savedCat = els.categorySelect.value;
-  const savedStep = els.stepSelect.value;
-  els.categorySelect.value = current.scopeCategoryId || "";
-  els.stepSelect.value = current.scopeSubcategoryId || "";
+  // Restaure temporairement la sélection sur le scope d'origine pour repiger dans le même bassin
+  const savedCat = selectedCategoryId;
+  const savedStep = selectedSubcategoryId;
+  selectedCategoryId = current.scopeCategoryId || "";
+  selectedSubcategoryId = current.scopeSubcategoryId || "";
 
   const drawn = drawTask(excludeId);
 
-  els.categorySelect.value = savedCat;
-  els.stepSelect.value = savedStep;
+  selectedCategoryId = savedCat;
+  selectedSubcategoryId = savedStep;
 
   if (!drawn) return;
 
@@ -964,7 +1020,8 @@ async function savePersonalization(timesMap) {
 // Étape finale : retour à "Je me lance!" avec les filtres rafraîchis
 function pzLaunch() {
   showTab("focus");
-  els.categorySelect.value = pz.categoryId || "";
+  selectedCategoryId = pz.categoryId || "";
+  renderCategoryOptions();
   renderStepOptions();
 }
 
@@ -979,8 +1036,6 @@ els.motivationalPersonalizeLink?.addEventListener("click", () => {
   showTab("history");
   showPersonalizePanel();
 });
-
-els.categorySelect?.addEventListener("change", renderStepOptions);
 
 els.startSessionBtn?.addEventListener("click", pickTask);
 els.confirmStartTimerBtn?.addEventListener("click", confirmStartTimer);
