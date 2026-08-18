@@ -94,7 +94,8 @@ function subcategoryIdsByName(name, categoryId) {
 function getSubcategoryIcon(name) {
   if (isGeneralAllRoomsSubcategory(name)) return "🏠";
   const n = normalizeName(name);
-  if (n.includes("cuisine")) return "🍽️";
+  if (n.includes("salle de jeux") || n.includes("jeux")) return "🧸";
+  if (n.includes("cuisine")) return "🍲";
   if (n.includes("salon") || n.includes("sejour")) return "🛋️";
   if (n.includes("chambre")) return "🛏️";
   if (n.includes("salle de bain") || n.includes("toilette") || n.includes("sdb")) return "🚿";
